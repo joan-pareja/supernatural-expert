@@ -42,8 +42,19 @@ tracks the official [LLM Zoomcamp project rubric](https://github.com/DataTalksCl
 
 ## Running the project
 
-This repository currently holds the agreed design. Working Docker commands will
-be added with the application.
+The application is not built yet, but the database it will use already runs
+locally. From the repository root on Windows:
+
+```powershell
+.\scripts\setup-dev.ps1
+docker compose up -d --wait
+```
+
+`setup-dev.ps1` creates `.env` from `.env.example`, installs the locked
+dependencies with `uv`, and links the shared agent skills. Fill in
+`OPENAI_API_KEY` and the Logfire tokens before running anything that reaches
+those services. Stop the database with `docker compose down`; adding `-v` also
+deletes its data.
 
 The final local setup will use Docker Compose for the app and PostgreSQL. Docker
 will provide all software dependencies. A reviewer will supply

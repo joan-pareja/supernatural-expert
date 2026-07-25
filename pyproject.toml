@@ -9,7 +9,9 @@ authors = [
     { name = "Joan Pareja", email = "jparegar9@gmail.com" }
 ]
 requires-python = ">=3.13,<3.14"
-dependencies = []
+dependencies = [
+    "dlt[postgres]>=1.29.1",
+]
 
 [build-system]
 requires = ["uv_build>=0.11.1,<0.12.0"]
@@ -18,6 +20,7 @@ build-backend = "uv_build"
 [dependency-groups]
 dev = [
     "pyright>=1.1.411",
+    "pytest>=9.1.1",
     "ruff>=0.16.0",
 ]
 
@@ -30,9 +33,12 @@ cache-dir = ".cache/ruff"
 # I: import sorting. Keep this small so Ruff stays useful without becoming noisy.
 select = ["E4", "E7", "E9", "F", "I"]
 
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
 [tool.pyright]
 # Directory-based so new files are checked without editing this list.
-include = ["src"]
+include = ["src", "tests"]
 pythonVersion = "3.13"
 venvPath = "."
 venv = ".venv"
