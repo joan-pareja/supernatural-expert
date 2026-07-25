@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "deny": [
+      "Read(./.env)",
+      "Read(./.env.local)",
+      "Read(./.env.*.local)",
+      "Read(./.claude/settings.local.json)",
+      "Bash(git commit*)",
+      "Bash(git push*)",
+      "Bash(git reset --hard*)",
+      "Bash(git rebase*)",
+      "Bash(git merge*)"
+    ],
+    "ask": [
+      "Bash(printenv *)",
+      "Bash(env *)",
+      "Bash(set *)"
+    ]
+  },
+  "sandbox": {
+    "credentials": {
+      "files": [
+        { "path": "./.env", "mode": "deny" },
+        { "path": "./.env.local", "mode": "deny" },
+        { "path": "./.claude/settings.local.json", "mode": "deny" }
+      ],
+      "envVars": [
+        { "name": "OPENAI_API_KEY", "mode": "deny" },
+        { "name": "LOGFIRE_WRITE_TOKEN", "mode": "deny" },
+        { "name": "LOGFIRE_READ_TOKEN", "mode": "deny" },
+        { "name": "POSTGRES_PASSWORD", "mode": "deny" }
+      ]
+    }
+  }
+}
