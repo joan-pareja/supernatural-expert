@@ -3,7 +3,7 @@ type: reference
 title: Development guide
 description: Defines the agreed local tools, quality checks, commit style, and note metadata.
 status: draft
-modified: 2026-07-25T22:11:40+02:00
+modified: 2026-07-25T22:57:12+02:00
 tags:
 - development
 - tooling
@@ -59,6 +59,17 @@ Use Pydantic AI for the agent and typed tool boundaries. The default answer mode
 is [`gpt-5.4-mini`](https://developers.openai.com/api/docs/models/gpt-5.4-mini).
 Use a local CPU ONNX model for embeddings if the selected model passes the first
 retrieval evaluation.
+
+## Branching
+
+Work on `main`. The project has one maintainer, no continuous integration gates,
+and no pull request review, so a long-lived `dev` branch would add merge work
+without adding isolation. Keeping `main` as the only permanent branch also keeps
+the wrap-up skill in its trunk-only mode.
+
+Create a short-lived `<label>/<verb-led-name>` branch only for speculative work
+that may be discarded, such as a retrieval or chunking experiment. Delete it once
+the result is merged or dropped.
 
 ## Commits
 
