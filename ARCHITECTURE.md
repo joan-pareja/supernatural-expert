@@ -1,0 +1,64 @@
+---
+type: reference
+title: Architecture
+description: Shows how ingestion, answering, evaluation, and monitoring fit together.
+status: draft
+modified: 2026-07-25T19:39:16+02:00
+tags:
+- architecture
+- rag
+related:
+- ./docs/ingestion.md
+- ./docs/retrieval.md
+- ./docs/evaluation.md
+- ./docs/monitoring.md
+---
+
+# Architecture
+
+> Keep this file at system level. Put detailed rules in the linked documents.
+
+```mermaid
+flowchart LR
+    wiki["Wikipedia Action API"] --> dlt["dlt ingestion"]
+    dlt --> docs["PostgreSQL episode documents"]
+    docs --> index["Text and vector indexes"]
+
+    user["Streamlit chat"] --> agent["Pydantic AI agent"]
+    agent --> search["Hybrid retrieval and RRF"]
+    search --> index
+    agent --> llm["gpt-5.4-mini"]
+    llm --> user
+
+    eval["Offline evaluation"] --> search
+    eval --> agent
+    user --> logfire["Logfire telemetry and feedback"]
+    agent --> logfire
+    logfire --> report["Streamlit reporting page"]
+```
+
+## Boundaries
+
+- PostgreSQL is the only persistent corpus and search store.
+- Logfire is the only telemetry and user-feedback store. The reporting page
+  reads it through the Logfire Query API; it does not copy metrics to PostgreSQL.
+- dlt writes cleaned episode documents straight to PostgreSQL.
+- A separate indexing step derives search units and embeddings in PostgreSQL.
+- Pydantic AI owns the agent loop and typed search tool.
+- `gpt-5.4-mini` is the default answer model.
+- Embeddings run locally on CPU through ONNX Runtime when a suitable model is
+  confirmed.
+- Streamlit owns chat, feedback controls, and reporting views.
+
+Docker Compose will run the application and PostgreSQL with a named database
+volume. Wikipedia, OpenAI, and Logfire remain external APIs.
+
+## Quality flow
+
+Offline evaluation compares retrieval choices before the best one becomes the
+app default. It also compares more than one answer setup. Live runs, judge
+results, timings, usage, errors, and feedback go to Logfire and feed the
+reporting page.
+
+There is no cloud deployment, scheduled ingestion service, DuckDB layer, or
+migration framework in the first release.

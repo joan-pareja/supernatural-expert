@@ -1,0 +1,7 @@
+interface:
+  display_name: "Wrap Up"
+  short_description: "Manage the branch and draft a commit message"
+  default_prompt: "Use $wrap-up to manage the branch and draft the commit title and message for the current changes."
+
+policy:
+  allow_implicit_invocation: false

@@ -1,0 +1,19 @@
+# Secrets
+.env
+.dlt/secrets.toml
+.streamlit/secrets.toml
+
+# Python
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+# Environments and tool caches
+.venv/
+.cache/
+
+# Locally downloaded ONNX embedding models
+models/
+
+# Local junction to .agents/skills; see docs/development.md
+.claude/skills/
