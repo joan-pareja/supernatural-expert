@@ -2,8 +2,8 @@
 type: reference
 title: Course rubric
 description: Maps the LLM Zoomcamp project rubric to planned evidence.
-status: draft
-modified: 2026-07-25T20:16:46+02:00
+status: approved
+modified: 2026-07-26T22:45:00+02:00
 tags:
 - rubric
 - course

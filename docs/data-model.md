@@ -2,8 +2,8 @@
 type: reference
 title: Data model
 description: Names the small set of corpus and search records stored in PostgreSQL.
-status: draft
-modified: 2026-07-25T19:39:16+02:00
+status: approved
+modified: 2026-07-26T22:45:00+02:00
 tags:
 - data-model
 - postgres
@@ -14,25 +14,41 @@ related:
 
 # Data model
 
-> Keep this conceptual until dlt and the indexer prove the needed schema. Exact
-> columns and SQL belong with the code.
+> Keep this at the level of what is stored and why. The corpus document shape is
+> settled; search units stay conceptual until the indexer proves them. Exact
+> columns, types, and SQL belong with the code.
 
 PostgreSQL holds two ideas:
 
-**Episode documents** are the canonical cleaned corpus. There is one per episode,
-with metadata, one final content field, and Wikipedia provenance.
+**Corpus documents** are the canonical cleaned corpus, one row per searchable
+document in a single flat table. Episodes and season introductions share that
+table, so retrieval reads one set of documents instead of combining several.
+Records have no nested values, so the loader produces no child tables. Fields
+that vary per document are stored; anything constant across the corpus is
+documented rather than repeated on every row. See [Corpus](corpus.md).
 
-**Search units** are rebuildable pieces derived from episode documents. Each
-keeps enough episode and source metadata for filtering and citations, plus its
+**Search units** are rebuildable pieces derived from corpus documents. Each keeps
+enough document and source metadata for filtering and citations, plus its
 text-search value and local embedding.
 
-dlt owns normalization when it loads episode documents. The indexing code owns
+Search units are built from `content` alone. It is the one field that ingestion
+resolves to a single best text per document, which is what keeps one episode from
+producing two competing results.
+
+dlt owns normalization when it loads corpus documents. The indexing code owns
 search units. Changing chunking must rebuild search units without re-fetching or
 duplicating the canonical corpus.
 
 PostgreSQL native full-text search supplies lexical matching, and pgvector stores
-embeddings. At this corpus size, exact vector search is the starting point; an
-approximate index is not required.
+embeddings.
+
+Vector search is exact, over a sequential scan, with no HNSW or IVFFlat index.
+Approximate indexes trade recall for speed and earn that trade in the tens of
+thousands of vectors. This corpus holds a few hundred, so an exact scan is both
+faster, having no index to traverse or build, and perfectly recalling. Adding one
+here would cost accuracy and gain nothing measurable. Revisit if the corpus ever
+grows by two orders of magnitude, which the fixed season 1 to 6 boundary rules
+out.
 
 Telemetry and feedback are not part of this model. They live only in Logfire, as
 defined in [Monitoring](monitoring.md).

@@ -2,8 +2,8 @@
 type: reference
 title: Architecture
 description: Shows how ingestion, answering, evaluation, and monitoring fit together.
-status: draft
-modified: 2026-07-25T19:39:16+02:00
+status: approved
+modified: 2026-07-26T22:45:00+02:00
 tags:
 - architecture
 - rag
@@ -21,7 +21,7 @@ related:
 ```mermaid
 flowchart LR
     wiki["Wikipedia Action API"] --> dlt["dlt ingestion"]
-    dlt --> docs["PostgreSQL episode documents"]
+    dlt --> docs["PostgreSQL corpus documents"]
     docs --> index["Text and vector indexes"]
 
     user["Streamlit chat"] --> agent["Pydantic AI agent"]
@@ -39,12 +39,18 @@ flowchart LR
 
 ## Boundaries
 
-- PostgreSQL is the only persistent corpus and search store.
+- PostgreSQL is the only persistent corpus and search store. See
+  [Data model](docs/data-model.md).
 - Logfire is the only telemetry and user-feedback store. The reporting page
-  reads it through the Logfire Query API; it does not copy metrics to PostgreSQL.
-- dlt writes cleaned episode documents straight to PostgreSQL.
+  reads it through the Logfire Query API; it does not copy metrics to
+  PostgreSQL. See [Monitoring](docs/monitoring.md).
+- dlt writes cleaned corpus documents straight to PostgreSQL. See
+  [Ingestion](docs/ingestion.md) and [Corpus](docs/corpus.md).
 - A separate indexing step derives search units and embeddings in PostgreSQL.
-- Pydantic AI owns the agent loop and typed search tool.
+  See [Retrieval](docs/retrieval.md).
+- Pydantic AI owns the agent loop and typed search tool. Install
+  `pydantic-ai-slim[openai]`, not the full `pydantic-ai`: the project uses one
+  model provider, and the full package pulls every other provider's SDK.
 - `gpt-5.4-mini` is the default answer model.
 - Embeddings run locally on CPU through ONNX Runtime when a suitable model is
   confirmed.
@@ -58,7 +64,8 @@ volume. Wikipedia, OpenAI, and Logfire remain external APIs.
 Offline evaluation compares retrieval choices before the best one becomes the
 app default. It also compares more than one answer setup. Live runs, judge
 results, timings, usage, errors, and feedback go to Logfire and feed the
-reporting page.
+reporting page. See [Evaluation](docs/evaluation.md) and [Roadmap](ROADMAP.md)
+for the order this happens in.
 
 There is no cloud deployment, scheduled ingestion service, DuckDB layer, or
 migration framework in the first release.

@@ -16,7 +16,6 @@
   the document that owns the part being changed.
 - Keep one owner for each decision. Link to it instead of copying its text.
 - Update `modified` when editing a knowledge note.
-- Use Conventional Commit titles with a lowercase type and a lowercase,
-  imperative summary of at most 70 characters and no final period. Use
-  capitalized, verb-led, period-terminated body bullets.
+- Manage commits with the `wrap-up` skill, which owns the title and body rules
+  and validates a title before it is used.
 - Never print or commit secrets.

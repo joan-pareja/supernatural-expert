@@ -1,0 +1,8 @@
+# dlt reads this file automatically. It holds settings only; credentials are
+# passed explicitly in code, so there is no .dlt/secrets.toml in this project.
+
+[runtime]
+# dlt sends anonymous usage events to an external endpoint by default. Ingestion
+# here is a local, one-off job, so nothing needs to leave the machine.
+dlthub_telemetry = false
+log_level = "WARNING"

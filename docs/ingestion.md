@@ -2,8 +2,8 @@
 type: reference
 title: Ingestion
 description: Defines the repeatable dlt flow from Wikipedia to PostgreSQL.
-status: draft
-modified: 2026-07-25T19:39:16+02:00
+status: approved
+modified: 2026-07-26T23:30:00+02:00
 tags:
 - ingestion
 - dlt
@@ -16,8 +16,8 @@ related:
 
 # Ingestion
 
-> Keep the extraction and load contract here. Do not describe search indexing in
-> this file.
+> Keep the extraction and load contract here. Parsing rules live in code, as
+> docstrings on the module that owns them. Do not describe search indexing.
 
 ## Locked approach
 
@@ -25,48 +25,78 @@ Use a custom dlt source and resource. Do not run `dlt init`; dependency ownershi
 stays with `uv`, `pyproject.toml`, and `uv.lock`.
 
 The pipeline reads wikitext from the Wikipedia Action API, returns cleaned
-[episode documents](corpus.md), and loads them straight into PostgreSQL. It does
+[corpus documents](corpus.md), and loads them straight into PostgreSQL. It does
 not persist raw responses, use DuckDB, or require intermediate files.
 
 ## One run
 
 ```text
 for season in 1..6:
-    resolve the page and pin its current revision ID
-    discover the Episodes section with action=parse, oldid, and prop=tocdata
-    fetch that section with action=parse, oldid, and prop=wikitext
-    parse each Episode list/sublist template
-
-    for each episode:
-        clean metadata and ShortSummary
-        if Title points to a standalone article:
-            discover and fetch its Plot section as wikitext
-            replace content with the cleaned standalone plot
-        attach page, revision, license, and retrieval provenance
-        yield one validated episode document
+    resolve the page and pin its revision ID
+    yield the season introduction from the lead section
+    parse the Episodes section into one entry per episode
+    prefer a standalone article's Plot over the table summary
+    yield one validated episode document each
 
 dlt loads the yielded documents to PostgreSQL
 validate counts, keys, required content, and season <= 6
 ```
 
-Section numbers must be discovered; they are not stable page contracts.
-`prop=sections` is deprecated, so use `prop=tocdata`. Fetching by revision ID
-makes a run repeatable even if a page changes during the load. The chosen page
-titles and revision IDs form a small ingestion manifest. It is provenance, not
-a raw-response archive or another storage layer.
+Records are flat, so one resource produces one table and no child tables.
 
-The important API request shapes are:
+Fetching by revision ID makes a run repeatable even if a page changes mid-load.
+Section indexes are discovered per revision, never hard-coded. The chosen page
+titles and revision IDs form a small ingestion manifest: provenance, not a
+raw-response archive or another storage layer.
+
+Two request shapes cover the whole pipeline:
 
 ```text
-action=query&titles={title}&prop=revisions&rvprop=ids|timestamp
-action=parse&oldid={revision_id}&prop=tocdata|revid
+action=parse&page={title}&prop=tocdata|revid&redirects=1
 action=parse&oldid={revision_id}&section={section_id}&prop=wikitext|revid
 ```
 
-The season table parser reads the `Episode list/sublist` fields that are present,
-such as episode numbers, title, credits, air date, production code, viewers, and
-`ShortSummary`. dlt may normalize nested provenance into related tables; the
-domain contract is still one episode document.
+The first resolves redirects, pins the revision, and lists the sections in one
+answer, so the pipeline never asks for a revision separately.
+
+Three modules own the detail, and their docstrings are the reference for it:
+`wikipedia.py` for requests and section discovery, `wikitext.py` for parsing and
+cleaning, and `documents.py` for assembling documents and validating a season.
+[Corpus](corpus.md) owns which fields survive and why.
+
+Parsing wikitext by hand is a deliberate choice, not the only option. Parser
+libraries, preprocessor XML, Wikidata, and Parsoid HTML were each measured
+against this corpus in
+[Wikipedia extraction alternatives](research/wikipedia-extraction-alternatives.md).
+
+dlt sends anonymous usage events to an external endpoint by default;
+`.dlt/config.toml` turns that off. That file holds settings only, because
+credentials are passed in code.
+
+## Why not the dltHub AI Workbench
+
+The workbench is dltHub's agent toolkit: a plugin marketplace of skills, a
+`dlt-workspace-mcp` server, and the `dlt[hub]` package. It was read and rejected.
+
+Its router maps "ingest from an HTTP API" to the `rest-api-pipeline` toolkit,
+built on the declarative `rest_api` source and `dlt init` scaffolding. This
+corpus is not a paginated REST resource; it is a handful of section fetches
+returning wikitext that needs a custom parser, so the routed path is both the
+wrong tool and the forbidden one. The workbench also expects a `dlthub`
+workspace with its own CLI and project layout, duplicating what `uv` and
+`pyproject.toml` already own.
+
+Its credential rule is the sharpest conflict. The workbench forbids code that
+reads credentials from a file and requires `dlt.secrets` backed by
+`.dlt/secrets.toml`. That is the implicit resolution this project rejects: a
+client picking credentials out of ambient config instead of being handed them.
+The rule guards against an agent reading secrets into its context, which
+permission rules in `.claude/settings.json` already prevent here. So `.env` plus
+`dotenv_values` stays, and every client is passed its credentials explicitly. See
+[Development](development.md).
+
+Worth revisiting for the `data-exploration` toolkit during evaluation and
+reporting work, which does not carry the ingestion scaffolding.
 
 ## API care
 
@@ -77,8 +107,12 @@ cannot be validated.
 ## Refresh policy
 
 The corpus is static for the project. Ingestion runs once during setup and again
-only by an explicit refresh command. The course awards the automated dlt
+only by an explicit refresh command. Rerunning replaces the table rather than
+appending, so a refresh is safe to repeat. The course awards the automated dlt
 pipeline; it does not require a scheduler.
+
+The [readme](../README.md) owns the exact commands, and `--help` on the module
+lists the dry-run, per-season, and export options.
 
 References: [MediaWiki parse API](https://www.mediawiki.org/wiki/API:Parsing_wikitext)
 and [dlt PostgreSQL destination](https://dlthub.com/docs/dlt-ecosystem/destinations/postgres).

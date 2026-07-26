@@ -51,15 +51,30 @@ docker compose up -d --wait
 ```
 
 `setup-dev.ps1` creates `.env` from `.env.example`, installs the locked
-dependencies with `uv`, and links the shared agent skills. Fill in
-`OPENAI_API_KEY` and the Logfire tokens before running anything that reaches
-those services. Stop the database with `docker compose down`; adding `-v` also
-deletes its data.
+dependencies with `uv`, and links the shared agent skills. Stop the database with
+`docker compose down`; adding `-v` also deletes its data.
+
+**`OPENAI_API_KEY` is the only value you must supply.** Everything else in
+`.env.example` already works. The two Logfire tokens are optional: without them
+the app runs and sends no telemetry, and with them it sends to your own Logfire
+project so you can reproduce the monitoring views. See
+[Monitoring](docs/monitoring.md).
+
+Then load the corpus. The dry run fetches and parses everything without touching
+PostgreSQL, writing one JSON file per season to `data/corpus/` so the result can
+be read first:
+
+```powershell
+uv run python -m supernatural_expert.ingestion --dry-run
+uv run python -m supernatural_expert.ingestion
+```
+
+A run produces 132 corpus documents across seasons 1 through 6, and fails
+rather than loading a partial corpus.
 
 The final local setup will use Docker Compose for the app and PostgreSQL. Docker
-will provide all software dependencies. A reviewer will supply
-`OPENAI_API_KEY`; OpenAI usage may cost money. Reproducing fresh monitoring data
-will also require credentials for the reviewer's own Logfire project.
+will provide all software dependencies. OpenAI usage may cost money; the Logfire
+free tier does not.
 
 Private Logfire access is not part of the handoff. The public repository will
 show the dashboard code, its queries, and screenshots with at least five charts.
@@ -68,7 +83,7 @@ show the dashboard code, its queries, and screenshots with at least five charts.
 
 - [Scope](docs/scope.md): the problem and the boundary of the first release.
 - [Corpus](docs/corpus.md): what the knowledge base contains.
-- [Ingestion](docs/ingestion.md): how Wikipedia becomes episode documents.
+- [Ingestion](docs/ingestion.md): how Wikipedia becomes corpus documents.
 - [Data model](docs/data-model.md): the few stored concepts.
 - [Retrieval](docs/retrieval.md): search and chunking decisions.
 - [Evaluation](docs/evaluation.md): offline and online quality checks.

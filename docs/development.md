@@ -1,9 +1,9 @@
 ---
 type: reference
 title: Development guide
-description: Defines the agreed local tools, quality checks, commit style, and note metadata.
-status: draft
-modified: 2026-07-25T22:57:12+02:00
+description: Defines the agreed local tools, quality checks, branching, and note metadata.
+status: approved
+modified: 2026-07-26T22:45:00+02:00
 tags:
 - development
 - tooling
@@ -55,10 +55,10 @@ settings, stay tracked.
 
 ## Model tools
 
-Use Pydantic AI for the agent and typed tool boundaries. The default answer model
-is [`gpt-5.4-mini`](https://developers.openai.com/api/docs/models/gpt-5.4-mini).
-Use a local CPU ONNX model for embeddings if the selected model passes the first
-retrieval evaluation.
+[Architecture](../ARCHITECTURE.md) owns which libraries and models the
+application uses, including the agent framework, the answer model, and how
+embeddings run. Package choices belong beside the boundary they serve, not in a
+second list here.
 
 ## Branching
 
@@ -73,10 +73,10 @@ the result is merged or dropped.
 
 ## Commits
 
-Use Conventional Commits. Both the type and the imperative summary are
-lowercase, and the summary takes no final period, such as
-`docs: capture project design`. Keep the full title at 70 characters or fewer.
-When a body helps, use capitalized, verb-led bullets that end with periods.
+Use Conventional Commits. The `wrap-up` skill in `.agents/skills/wrap-up/` owns
+the exact title and body rules and ships a validator that checks a title before
+it is used. Restating those rules here would give them a second owner that can
+drift from the one doing the checking.
 
 ## Markdown metadata
 

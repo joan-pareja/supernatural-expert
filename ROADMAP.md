@@ -2,8 +2,8 @@
 type: reference
 title: Roadmap
 description: Orders the two-week build and records decisions that are still open.
-status: draft
-modified: 2026-07-25T20:16:46+02:00
+status: approved
+modified: 2026-07-26T22:45:00+02:00
 tags:
 - roadmap
 - planning
@@ -25,20 +25,22 @@ related:
 ## 2. Corpus
 
 - Build and test the dlt Wikipedia source for seasons 1 through 6.
-- Load canonical episode documents into PostgreSQL.
+- Load canonical corpus documents into PostgreSQL.
 - Check episode counts, required fields, revision IDs, and spoiler limits.
 
 ## 3. Search and chat
 
 - Add local ONNX embeddings and PostgreSQL text search.
-- Compare lexical, vector, and hybrid RRF retrieval.
+- Build all three retrieval paths: lexical, vector, and hybrid RRF. Choosing
+  between them waits for the ground truth in step 4.
 - Add the Pydantic AI agent, citations, abstention, and spoiler refusal.
 - Build the Streamlit chat.
 
 ## 4. Quality and reporting
 
 - Create and review a small synthetic ground-truth set.
-- Evaluate several retrieval and answer setups; use the winners.
+- Compare the three retrieval paths and several answer setups against it, then
+  tune and adopt the winners.
 - Send runs, judge results, and thumbs feedback to Logfire.
 - Build at least five reporting charts from the Logfire Query API.
 
@@ -52,6 +54,5 @@ related:
 
 - Choose and benchmark the exact ONNX embedding model and vector size.
 - Test chunking after the baseline evaluation exists.
-- Decide whether season introductions improve retrieval.
 - Select a true document reranker. RRF combines ranks; it is not reranking.
 - Decide whether query rewriting earns its best-practice point.

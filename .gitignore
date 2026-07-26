@@ -15,5 +15,8 @@ __pycache__/
 # Locally downloaded ONNX embedding models
 models/
 
+# Corpus JSON exported for inspection; PostgreSQL is the source of truth
+data/
+
 # Local junction to .agents/skills; see docs/development.md
 .claude/skills/

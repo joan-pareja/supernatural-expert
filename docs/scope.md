@@ -2,8 +2,8 @@
 type: reference
 title: Project scope
 description: Defines the problem, audience, and first-release boundary.
-status: draft
-modified: 2026-07-25T19:39:16+02:00
+status: approved
+modified: 2026-07-26T22:45:00+02:00
 tags:
 - scope
 - product

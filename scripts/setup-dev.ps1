@@ -19,10 +19,16 @@ if (Test-Path ".env") {
     Write-Host "Skipped .env; it already exists."
 } else {
     Copy-Item ".env.example" ".env"
-    Write-Host "Created .env from .env.example. Fill in OPENAI_API_KEY and the Logfire tokens."
+    Write-Host "Created .env from .env.example. Add OPENAI_API_KEY; every other value already works."
 }
 
 uv sync
 
+# This script stays offline and idempotent, so it prepares the host and stops
+# there. Starting the database and loading the corpus need Docker running and
+# reach the network, so they are left as explicit steps.
 Write-Host ""
-Write-Host "Setup complete. Start the database with: docker compose up -d --wait"
+Write-Host "Setup complete. Next:"
+Write-Host "  1. docker compose up -d --wait"
+Write-Host "  2. uv run python -m supernatural_expert.ingestion --dry-run   # optional, writes data/corpus/*.json"
+Write-Host "  3. uv run python -m supernatural_expert.ingestion             # loads 132 documents into PostgreSQL"
