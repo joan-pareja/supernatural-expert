@@ -24,9 +24,13 @@ if (Test-Path ".env") {
 
 uv sync
 
-# This script stays offline and idempotent, so it prepares the host and stops
-# there. Starting the database and loading the corpus need Docker running and
-# reach the network, so they are left as explicit steps.
+# The ONNX embedding weights are about 90 MB, so they are downloaded rather than
+# committed. They belong here beside uv sync: both fetch a pinned dependency the
+# host needs before any code runs, and both keep what is already present.
+uv run python -m supernatural_expert.embedding
+
+# This script prepares the host and stops there. Starting the database and
+# loading the corpus change state outside the clone, so they stay explicit.
 Write-Host ""
 Write-Host "Setup complete. Next:"
 Write-Host "  1. docker compose up -d --wait"

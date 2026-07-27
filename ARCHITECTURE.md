@@ -3,7 +3,7 @@ type: reference
 title: Architecture
 description: Shows how ingestion, answering, evaluation, and monitoring fit together.
 status: approved
-modified: 2026-07-26T22:45:00+02:00
+modified: 2026-07-27T00:51:00+02:00
 tags:
 - architecture
 - rag
@@ -27,6 +27,7 @@ flowchart LR
     user["Streamlit chat"] --> agent["Pydantic AI agent"]
     agent --> search["Hybrid retrieval and RRF"]
     search --> index
+    search --> rerank["Cross-encoder reranking"]
     agent --> llm["gpt-5.4-mini"]
     llm --> user
 
@@ -52,8 +53,14 @@ flowchart LR
   `pydantic-ai-slim[openai]`, not the full `pydantic-ai`: the project uses one
   model provider, and the full package pulls every other provider's SDK.
 - `gpt-5.4-mini` is the default answer model.
-- Embeddings run locally on CPU through ONNX Runtime when a suitable model is
-  confirmed.
+- Embeddings run locally on CPU through ONNX Runtime, so no embedding provider,
+  API key, or GPU is part of the runtime. The encoder is
+  `Xenova/bge-small-en-v1.5` at 384 dimensions, pinned to a commit so repeated
+  runs produce identical vectors. [Retrieval](docs/retrieval.md) owns why it is
+  the only one.
+- A cross-encoder reranks the candidates hybrid search returns, on the same CPU
+  and ONNX Runtime as the encoder. It scores query and passage together, which
+  neither embedding nor RRF does. See [Retrieval](docs/retrieval.md).
 - Streamlit owns chat, feedback controls, and reporting views.
 
 Docker Compose will run the application and PostgreSQL with a named database

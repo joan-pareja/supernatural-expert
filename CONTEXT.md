@@ -3,7 +3,7 @@ type: reference
 title: Project context
 description: Defines words that have a special meaning in Supernatural Expert.
 status: approved
-modified: 2026-07-26T22:45:00+02:00
+modified: 2026-07-26T18:15:00+02:00
 tags:
 - glossary
 - domain

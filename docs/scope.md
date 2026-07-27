@@ -3,7 +3,7 @@ type: reference
 title: Project scope
 description: Defines the problem, audience, and first-release boundary.
 status: approved
-modified: 2026-07-26T22:45:00+02:00
+modified: 2026-07-27T00:22:00+02:00
 tags:
 - scope
 - product
@@ -19,9 +19,9 @@ related:
 
 ## Goal
 
-Build a small expert that answers questions about *Supernatural* episodes with
-fresh, inspectable source text. It should be more faithful than asking a model
-from memory and safe for a viewer who has not watched beyond Season 6.
+The goal is a small expert that answers questions about *Supernatural* episodes
+with fresh, inspectable source text. It is meant to be more faithful than asking
+a model from memory, and safe for a viewer who has not watched beyond Season 6.
 
 The first idea allowed users to create experts for any movie or show. That made
 corpus selection, loading, and setup the main project. The fixed show and spoiler

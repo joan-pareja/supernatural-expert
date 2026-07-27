@@ -3,7 +3,7 @@ type: reference
 title: Roadmap
 description: Orders the two-week build and records decisions that are still open.
 status: approved
-modified: 2026-07-26T22:45:00+02:00
+modified: 2026-07-27T01:03:00+02:00
 tags:
 - roadmap
 - planning
@@ -41,6 +41,7 @@ related:
 - Create and review a small synthetic ground-truth set.
 - Compare the three retrieval paths and several answer setups against it, then
   tune and adopt the winners.
+- Add the cross-encoder reranking stage and measure it against hybrid alone.
 - Send runs, judge results, and thumbs feedback to Logfire.
 - Build at least five reporting charts from the Logfire Query API.
 
@@ -52,7 +53,6 @@ related:
 
 ## Open decisions
 
-- Choose and benchmark the exact ONNX embedding model and vector size.
-- Test chunking after the baseline evaluation exists.
-- Select a true document reranker. RRF combines ranks; it is not reranking.
-- Decide whether query rewriting earns its best-practice point.
+- Test chunking against the unsplit baseline once the ground truth exists.
+- Keep or drop each measured extra on its result. Chunking and reranking are both
+  planned, and neither is adopted for having been built.

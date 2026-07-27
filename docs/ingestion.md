@@ -3,7 +3,7 @@ type: reference
 title: Ingestion
 description: Defines the repeatable dlt flow from Wikipedia to PostgreSQL.
 status: approved
-modified: 2026-07-26T23:30:00+02:00
+modified: 2026-07-27T00:22:00+02:00
 tags:
 - ingestion
 - dlt
@@ -21,8 +21,8 @@ related:
 
 ## Locked approach
 
-Use a custom dlt source and resource. Do not run `dlt init`; dependency ownership
-stays with `uv`, `pyproject.toml`, and `uv.lock`.
+Ingestion is a custom dlt source and resource. `dlt init` is never run, so
+dependency ownership stays with `uv`, `pyproject.toml`, and `uv.lock`.
 
 The pipeline reads wikitext from the Wikipedia Action API, returns cleaned
 [corpus documents](corpus.md), and loads them straight into PostgreSQL. It does
@@ -100,9 +100,9 @@ reporting work, which does not carry the ingestion scaffolding.
 
 ## API care
 
-Use a clear User-Agent, low concurrency, timeouts, retries with backoff, gzip,
-and Wikimedia's `maxlag` signal. Fail the run when an expected season or episode
-cannot be validated.
+Requests carry a clear User-Agent and use low concurrency, timeouts, retries with
+backoff, gzip, and Wikimedia's `maxlag` signal. A run fails rather than continues
+when an expected season or episode cannot be validated.
 
 ## Refresh policy
 

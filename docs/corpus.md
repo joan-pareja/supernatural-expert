@@ -1,12 +1,10 @@
 ---
-
 type: reference
 title: Corpus
 description: Defines the Wikipedia corpus documents and the consolidation rule.
 status: approved
-modified: 2026-07-26T22:45:00+02:00
+modified: 2026-07-27T00:22:00+02:00
 tags:
-
 - corpus
 - wikipedia
 - supernatural
@@ -14,7 +12,6 @@ related:
 - ../CONTEXT.md
 - ./ingestion.md
 - ./data-model.md
-
 ---
 
 # Corpus
@@ -29,9 +26,9 @@ The corpus uses the English Wikipedia Action API at
 6: 126 episodes and 6 season introductions, so 132 documents. Data comes through
 the API as wikitext; the pipeline does not scrape pages or save HTML files.
 
-Wikipedia is the app's source of record. The agent should prefer retrieved
-corpus text over its memory, cite it, and abstain when it is missing. This keeps
-answers faithful without claiming that Wikipedia can never contain an error.
+Wikipedia is the app's source of record. The agent prefers retrieved corpus text
+over its memory, cites it, and abstains when it is missing. This keeps answers
+faithful without claiming that Wikipedia can never contain an error.
 
 ## Two kinds of document
 
@@ -49,12 +46,12 @@ documents rather than combining several.
 Every season page has an episode table with a `ShortSummary`. Some episode titles
 also link to a standalone article with a longer Plot section.
 
-For each episode:
+For each episode the pipeline:
 
-1. Parse the season table summary and metadata.
-2. If the title links to a standalone episode article, fetch its Plot section.
-3. Use the standalone plot as `content`; otherwise use the table summary.
-4. Keep one document per episode, not two competing search results.
+1. Parses the season table summary and metadata.
+2. Fetches the Plot section when the title links to a standalone episode article.
+3. Takes that plot as `content`, and the table summary otherwise.
+4. Produces one document, never two competing search results.
 
 Season 1 shows both cases: `Pilot` links to `Pilot (Supernatural)`, while
 `Wendigo` uses the season table summary. Twelve episodes take a standalone plot.

@@ -3,7 +3,7 @@ type: reference
 title: Monitoring
 description: Defines Logfire as the single telemetry and feedback source.
 status: approved
-modified: 2026-07-26T23:10:00+02:00
+modified: 2026-07-27T00:22:00+02:00
 tags:
 - monitoring
 - logfire
@@ -29,8 +29,9 @@ and answer. PostgreSQL must not keep a duplicate feedback or monitoring copy.
 
 ## Optional by design
 
-Configure with `send_to_logfire="if-token-present"`. With a write token the app
-sends telemetry; without one it sends nothing, raises nothing, and runs normally.
+Logfire is configured with `send_to_logfire="if-token-present"`. With a write
+token the app sends telemetry; without one it sends nothing, raises nothing, and
+runs normally.
 
 Logfire is therefore optional for anyone running the project. A reviewer needs
 only `OPENAI_API_KEY` to use the chat. Supplying their own Logfire tokens is what

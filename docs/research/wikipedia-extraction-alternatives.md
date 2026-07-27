@@ -3,7 +3,7 @@ type: reference
 title: Wikipedia extraction alternatives
 description: Compares the wikitext parser against libraries, parse trees, Wikidata, and Parsoid.
 status: approved
-modified: 2026-07-26T21:00:00+02:00
+modified: 2026-07-26T18:15:00+02:00
 tags:
 - ingestion
 - wikipedia

@@ -3,7 +3,7 @@ type: reference
 title: Data model
 description: Names the small set of corpus and search records stored in PostgreSQL.
 status: approved
-modified: 2026-07-26T22:45:00+02:00
+modified: 2026-07-26T19:40:00+02:00
 tags:
 - data-model
 - postgres
@@ -34,6 +34,10 @@ text-search value and local embedding.
 Search units are built from `content` alone. It is the one field that ingestion
 resolves to a single best text per document, which is what keeps one episode from
 producing two competing results.
+
+Both search paths read the same units. Lexical matching has no length limit and
+would not need them, but RRF fuses positions in two ranked lists, and positions
+only mean the same thing when both lists rank the same things.
 
 dlt owns normalization when it loads corpus documents. The indexing code owns
 search units. Changing chunking must rebuild search units without re-fetching or

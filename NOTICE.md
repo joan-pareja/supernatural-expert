@@ -3,7 +3,7 @@ type: reference
 title: Third-party notices
 description: Records the source and reuse terms of Wikipedia corpus text.
 status: approved
-modified: 2026-07-26T22:45:00+02:00
+modified: 2026-07-26T18:15:00+02:00
 tags:
 - licensing
 - wikipedia
