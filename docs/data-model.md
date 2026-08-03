@@ -3,7 +3,7 @@ type: reference
 title: Data model
 description: Names the small set of corpus and search records stored in PostgreSQL.
 status: approved
-modified: 2026-07-26T19:40:00+02:00
+modified: 2026-08-04T01:19:00+02:00
 tags:
 - data-model
 - postgres
@@ -14,9 +14,8 @@ related:
 
 # Data model
 
-> Keep this at the level of what is stored and why. The corpus document shape is
-> settled; search units stay conceptual until the indexer proves them. Exact
-> columns, types, and SQL belong with the code.
+> Keep this at the level of what is stored and why. Exact columns, types, and SQL
+> belong with the code.
 
 PostgreSQL holds two ideas:
 
@@ -42,6 +41,14 @@ only mean the same thing when both lists rank the same things.
 dlt owns normalization when it loads corpus documents. The indexing code owns
 search units. Changing chunking must rebuild search units without re-fetching or
 duplicating the canonical corpus.
+
+The two owners hold separate schemas, `corpus` and `search`. dlt may drop and
+recreate the dataset it owns on a refresh, which would take a co-located table
+with it, so nothing derived is stored where dlt can reach it. For the same reason
+a search unit copies the document fields it needs rather than referencing them: a
+foreign key could not survive that refresh, and the copies let every search read
+a single table. A rebuild replaces the whole table in one transaction, since
+derived data has no state worth migrating.
 
 PostgreSQL native full-text search supplies lexical matching, and pgvector stores
 embeddings.

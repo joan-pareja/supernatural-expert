@@ -3,7 +3,7 @@ type: reference
 title: Retrieval
 description: Defines the search baseline and evaluation-driven choices.
 status: approved
-modified: 2026-07-27T02:09:00+02:00
+modified: 2026-08-04T01:19:00+02:00
 tags:
 - retrieval
 - hybrid-search
@@ -77,7 +77,24 @@ document its place in the results; the agent is then given that document's whole
 `content`, never the piece alone. Small units sharpen the match without costing
 the model the context around it.
 
+Pieces are embedded exactly as they are cut, with no episode header prepended.
+Adding one would place the season, episode number, and title inside every vector,
+so a later piece of a split plot could match a question naming its episode; as it
+stands, only the lexical path knows an episode's title. That is accepted for
+simplicity. The title is a separately weighted field in the text index, which
+already answers questions that name one, and keeping the embedded text identical
+to the stored text leaves one less rule to hold in mind. The cost falls on the
+vector path alone, and only on the few documents long enough to split.
+
 ## Ranking and reranking
+
+Lexical ranking weights the fields it reads. Title and piece are indexed into one
+`tsvector` with PostgreSQL's `setweight`, the title as `A` and the piece as `B`,
+so `ts_rank` counts a title match two and a half times a body match. The weights
+are assigned once in a stored column rather than passed per query, which keeps
+them beyond a caller's reach and off the query path. Four discrete levels are all
+PostgreSQL offers, and that ceiling is welcome: a continuous per-field dial is the
+kind of knob a small ground truth is easily tuned into.
 
 RRF is rank fusion: it combines the positions a document took in the lexical and
 vector lists. It never looks at the query again, which is why it is not
