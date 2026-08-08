@@ -11,7 +11,7 @@ compare their positions. Fusion combines ranks and never reads the query again,
 which is what separates it from reranking.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any, Literal
 
 from supernatural_expert.embedding.encoder import Encoder
@@ -33,7 +33,16 @@ DEFAULT_CANDIDATES = 50
 # than tuned.
 RRF_K = 60
 
-# Everything a result needs, in the order the row is unpacked.
+# The narrowing every path applies, the same in each. A condition whose value is
+# None passes for every row, so one statement serves a filtered and an unfiltered
+# search alike and no path has to assemble a WHERE clause of its own.
+FILTER_CONDITIONS = """
+    (%(season)s IS NULL OR season_number = %(season)s)
+    AND (%(episode)s IS NULL OR episode_number = %(episode)s)
+    AND (%(document_type)s IS NULL OR document_type = %(document_type)s)
+"""
+
+# Everything a result needs. Every path selects these and then a score.
 RESULT_COLUMNS = (
     "unit_id",
     "document_id",
@@ -59,27 +68,18 @@ class SearchFilters:
     episode: int | None = None
     document_type: DocumentType | None = None
 
-    def where(self) -> tuple[str, dict[str, Any]]:
-        """Return the filter conditions and the values they name, empty if unset.
+    def values(self) -> dict[str, Any]:
+        """Return every filter as a query parameter, unset ones as None.
 
-        The conditions are joined here because they always combine the same way.
-        The fragment does not begin with a conjunction, so it stands on its own
-        and a caller attaches it to whatever predicates its own path already has.
-
-        Each value is named rather than positional, so a caller merges it into
-        its own parameters and the order it writes them in cannot matter.
+        All three are always supplied, because FILTER_CONDITIONS always asks for
+        all three. A filter is switched off by its value rather than by leaving
+        its condition out of the statement.
         """
-        conditions: list[str] = []
-        values: dict[str, Any] = {}
-        for name, column, value in (
-            ("season", "season_number", self.season),
-            ("episode", "episode_number", self.episode),
-            ("document_type", "document_type", self.document_type),
-        ):
-            if value is not None:
-                conditions.append(f"{column} = %({name})s")
-                values[name] = value
-        return " AND ".join(conditions), values
+        return {
+            "season": self.season,
+            "episode": self.episode,
+            "document_type": self.document_type,
+        }
 
 
 @dataclass(frozen=True, slots=True)
@@ -180,23 +180,21 @@ class SearchEngine:
         Terms are stemmed and stop words dropped on both sides, so "brothers" in
         a question meets "brother" in a plot.
         """
-        conditions, filter_values = filters.where()
         # Either field may carry the match, and then whatever the caller asked
         # for narrows it.
-        where = "(title ||| %(query)s OR unit_text ||| %(query)s)"
-        if conditions:
-            where += f" AND {conditions}"
         sql = f"""
             SELECT
                 {", ".join(RESULT_COLUMNS)},
                 pdb.score(unit_id) AS score
             FROM {SCHEMA}.{UNIT_TABLE}
-            WHERE {where}
+            WHERE
+                (title ||| %(query)s OR unit_text ||| %(query)s)
+                AND {FILTER_CONDITIONS}
             ORDER BY score DESC, unit_id
             LIMIT %(candidates)s
         """
         return self._fetch(
-            sql, {"query": query, "candidates": candidates, **filter_values}
+            sql, {"query": query, "candidates": candidates, **filters.values()}
         )
 
     def _search_vector(
@@ -208,18 +206,15 @@ class SearchEngine:
         query marker. Encoding it as a passage instead would compare two
         different kinds of text and quietly lose accuracy.
         """
-        conditions, filter_values = filters.where()
-        # Every unit is a candidate here, so an unfiltered search has no WHERE
-        # clause at all rather than a placeholder condition.
-        where = f"WHERE {conditions}" if conditions else ""
-        # Vectors are unit length, so cosine distance subtracted from one is the
-        # cosine similarity. The scan is exact; see docs/data-model.md.
+        # Every unit is a candidate here, so the filters are the whole of the
+        # narrowing. Vectors are unit length, so cosine distance subtracted from
+        # one is the cosine similarity. The scan is exact; see docs/data-model.md.
         sql = f"""
             SELECT
                 {", ".join(RESULT_COLUMNS)},
                 1 - (embedding <=> %(vector)s::vector) AS score
             FROM {SCHEMA}.{UNIT_TABLE}
-            {where}
+            WHERE {FILTER_CONDITIONS}
             ORDER BY embedding <=> %(vector)s::vector, unit_id
             LIMIT %(candidates)s
         """
@@ -228,7 +223,7 @@ class SearchEngine:
             {
                 "vector": to_pgvector(self.encoder.encode_query(query)),
                 "candidates": candidates,
-                **filter_values,
+                **filters.values(),
             },
         )
 
@@ -267,18 +262,10 @@ class SearchEngine:
                 )
                 units.setdefault(candidate.unit_id, candidate)
 
+        # Only the score changes; the unit is whichever path saw it first, and
+        # both saw the same row.
         return [
-            _Candidate(
-                unit_id=unit_id,
-                document_id=units[unit_id].document_id,
-                title=units[unit_id].title,
-                season_number=units[unit_id].season_number,
-                episode_number=units[unit_id].episode_number,
-                content=units[unit_id].content,
-                source_url=units[unit_id].source_url,
-                unit_text=units[unit_id].unit_text,
-                score=score,
-            )
+            replace(units[unit_id], score=score)
             for unit_id, score in sorted(
                 scores.items(), key=lambda item: (-item[1], item[0])
             )
