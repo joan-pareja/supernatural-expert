@@ -53,14 +53,11 @@ UNIT_COLUMNS = (
     "source_url",
 )
 
-# Weight A outranks B in ts_rank by default, 1.0 against 0.4, so a title match is
-# worth more than a body match without any tuned number. Assigning the weights in
-# a stored generated column means it is computed once per unit at build time
-# rather than per query, and no caller can forget to apply it.
-LEXEME_EXPRESSION = """
-    setweight(to_tsvector('english', title), 'A') ||
-    setweight(to_tsvector('english', unit_text), 'B')
-"""
+# Both searchable fields are stemmed and stripped of stop words, so "brothers" in
+# a question meets "brother" in a plot and "the" earns nothing. BM25 already
+# normalises for field length, which is what makes a title match count for more
+# than a body match without any weight being assigned by hand.
+TEXT_TOKENIZER = "pdb.simple('stemmer=english', 'stopwords_language=english')"
 
 
 def connect(settings: Settings) -> Any:
@@ -103,15 +100,27 @@ def create_table_sql(model: EmbeddingModel = DEFAULT_MODEL) -> str:
             episode_number integer,
             title text NOT NULL,
             content text NOT NULL,
-            source_url text NOT NULL,
-            lexemes tsvector GENERATED ALWAYS AS ({LEXEME_EXPRESSION}) STORED
+            source_url text NOT NULL
         );
 
-        CREATE INDEX {UNIT_TABLE}_lexemes_idx ON {table} USING gin (lexemes);
+        -- pg_search's BM25 index. The key field comes first and stays
+        -- untokenized, which the extension requires. The filter columns are
+        -- indexed alongside the text so a narrowed lexical search is answered
+        -- from one index rather than by discarding scored rows afterwards.
+        CREATE INDEX {UNIT_TABLE}_bm25_idx ON {table}
+        USING bm25 (
+            unit_id,
+            (title::{TEXT_TOKENIZER}),
+            (unit_text::{TEXT_TOKENIZER}),
+            document_id,
+            season_number,
+            episode_number,
+            document_type
+        ) WITH (key_field='unit_id');
 
-        -- Filters run against these on every path, and the table is small enough
-        -- that this is the only other indexing it needs. Vector search stays an
-        -- exact sequential scan; see docs/data-model.md.
+        -- Vector search does not read the BM25 index, so its filters still need
+        -- these. The table is small enough that nothing else is worth indexing,
+        -- and the vector scan stays exact; see docs/data-model.md.
         CREATE INDEX {UNIT_TABLE}_document_idx ON {table} (document_id);
         CREATE INDEX {UNIT_TABLE}_season_idx ON {table} (season_number);
     """
@@ -168,10 +177,14 @@ def write_units(connection: Any, units: list[SearchUnit]) -> None:
         )
 
 
-def build_index(settings: Settings) -> int:
-    """Rebuild the whole index from the corpus and return the unit count."""
-    chunker = Chunker()
-    encoder = Encoder()
+def build_index(settings: Settings, model: EmbeddingModel = DEFAULT_MODEL) -> int:
+    """Rebuild the whole index from the corpus and return the unit count.
+
+    The encoder is a parameter because comparing two of them means building the
+    index twice; the table's vector width follows from whichever is passed.
+    """
+    chunker = Chunker(model)
+    encoder = Encoder(model)
 
     # psycopg2's connection context manager ends the transaction but leaves the
     # socket open, so closing is explicit here.

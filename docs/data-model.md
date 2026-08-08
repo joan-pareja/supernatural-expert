@@ -3,7 +3,7 @@ type: reference
 title: Data model
 description: Names the small set of corpus and search records stored in PostgreSQL.
 status: approved
-modified: 2026-08-04T01:19:00+02:00
+modified: 2026-08-08T19:54:00+02:00
 tags:
 - data-model
 - postgres
@@ -50,8 +50,9 @@ foreign key could not survive that refresh, and the copies let every search read
 a single table. A rebuild replaces the whole table in one transaction, since
 derived data has no state worth migrating.
 
-PostgreSQL native full-text search supplies lexical matching, and pgvector stores
-embeddings.
+The `pg_search` extension supplies lexical matching with BM25, and pgvector
+stores embeddings. Both are extensions of the one database, so a search reads a
+single table through two indexes and there is nothing to keep in step.
 
 Vector search is exact, over a sequential scan, with no HNSW or IVFFlat index.
 Approximate indexes trade recall for speed and earn that trade in the tens of

@@ -3,7 +3,7 @@ type: reference
 title: Retrieval
 description: Defines the search baseline and evaluation-driven choices.
 status: approved
-modified: 2026-08-04T01:19:00+02:00
+modified: 2026-08-08T23:29:00+02:00
 tags:
 - retrieval
 - hybrid-search
@@ -21,7 +21,7 @@ related:
 
 ## Search paths
 
-- Lexical search uses PostgreSQL full-text search.
+- Lexical search uses BM25, through the `pg_search` extension.
 - Vector search uses local ONNX embeddings stored with pgvector.
 - Hybrid search combines both ranked lists with reciprocal rank fusion (RRF).
 
@@ -29,6 +29,13 @@ All paths filter to seasons 1 through 6 and return source metadata for citations
 The Pydantic AI agent calls one typed search tool and answers only from its
 results. If evidence is weak or missing, it says so instead of filling the gap
 from model memory.
+
+The spoiler boundary is the corpus itself, not a search argument. Nothing past
+season 6 was ever loaded, so no filter has to hold the line and none is offered.
+A `through_season` argument would be chosen by the model on each call, which
+makes it a preference rather than a guarantee: whatever can set it correctly can
+set it to 6. What remains is the agent recognising an empty result as an empty
+result, which is the same discipline every other unanswerable question needs.
 
 ## Embedding model
 
@@ -42,10 +49,17 @@ do. MiniLM learned whether two sentences mean the same thing; bge learned whethe
 a passage answers a question, which is the job here. Both are 384 dimensions and
 run on CPU without a GPU or an embedding provider.
 
-Embedding the whole corpus takes about twenty seconds. That is paid when the
-index is built, never per query, but it is also paid once per experiment that
-changes the index, which is part of why the comparisons in
-[Evaluation](evaluation.md) stay few and deliberate.
+The same family's larger size is defined beside it and is not the default. It
+scores higher, but a paired bootstrap over the ground truth puts zero inside
+every confidence interval, and an improvement this corpus cannot demonstrate does
+not earn three times the weights and three times the indexing time.
+
+Embedding the whole corpus takes under half a minute on a laptop CPU, and scales
+with whatever machine runs it. That is paid when the index is built, never per
+query, but it is also paid once per experiment that changes the index, which is
+part of why the comparisons in [Evaluation](evaluation.md) stay few and
+deliberate. The weights are a separate one-time cost of 128 MB, downloaded rather
+than committed.
 
 ## Chunking
 
@@ -81,20 +95,33 @@ Pieces are embedded exactly as they are cut, with no episode header prepended.
 Adding one would place the season, episode number, and title inside every vector,
 so a later piece of a split plot could match a question naming its episode; as it
 stands, only the lexical path knows an episode's title. That is accepted for
-simplicity. The title is a separately weighted field in the text index, which
-already answers questions that name one, and keeping the embedded text identical
+simplicity. The title is its own indexed field there, and BM25 favours a term
+found in a short field over the same term buried in a plot, so a question naming
+an episode is already answered without help; keeping the embedded text identical
 to the stored text leaves one less rule to hold in mind. The cost falls on the
 vector path alone, and only on the few documents long enough to split.
 
 ## Ranking and reranking
 
-Lexical ranking weights the fields it reads. Title and piece are indexed into one
-`tsvector` with PostgreSQL's `setweight`, the title as `A` and the piece as `B`,
-so `ts_rank` counts a title match two and a half times a body match. The weights
-are assigned once in a stored column rather than passed per query, which keeps
-them beyond a caller's reach and off the query path. Four discrete levels are all
-PostgreSQL offers, and that ceiling is welcome: a continuous per-field dial is the
-kind of knob a small ground truth is easily tuned into.
+Lexical ranking is BM25, over the title and the piece as two indexed fields. A
+question matches disjunctively: a unit carrying any of its terms is a candidate,
+and the score reflects how many it carries and how rare each one is across the
+corpus. That rarity term is the whole point. In a question naming both Dean and
+the Roadhouse, `dean` appears in almost every unit and separates nothing, while
+`roadhous` appears in a handful and identifies the episode outright.
+
+No field weight is assigned by hand. BM25 normalises for field length, so a term
+found in a short title already counts for more than the same term buried in a
+plot, which is the effect a weight would have been chosen to produce. Leaving it
+alone also removes a dial that a ground truth of a few hundred questions is
+easily tuned into.
+
+BM25 replaced PostgreSQL's own `tsvector` ranking, which was built first and
+found barely to work. `plainto_tsquery` joins a question's stems with AND, so a
+unit missing any one of them does not match at all, and `ts_rank` reads only
+within a document, leaving a term that occurs in nearly every unit worth as much
+as one that occurs in five. It retrieved 8 of 426 ground truth questions where
+BM25 retrieves 400. The measurements are kept with the evaluation artifacts.
 
 RRF is rank fusion: it combines the positions a document took in the lexical and
 vector lists. It never looks at the query again, which is why it is not

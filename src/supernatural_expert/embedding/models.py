@@ -73,6 +73,19 @@ BGE_SMALL_EN_V1_5 = EmbeddingModel(
     query_prefix="Represent this sentence for searching relevant passages: ",
 )
 
+# The same encoder one size up, kept so the size of the model can be measured
+# rather than assumed. BAAI reports 53.25 against 51.68 on MTEB retrieval, and it
+# is otherwise identical in shape: the same query marker, the same pooling, the
+# same 512-token window, with 768 dimensions instead of 384.
+BGE_BASE_EN_V1_5 = EmbeddingModel(
+    repository="Xenova/bge-base-en-v1.5",
+    revision="4d6cd88e18e51a5e020c2c305726d76ada9c03cf",
+    dimensions=768,
+    max_tokens=512,
+    pooling="cls",
+    query_prefix="Represent this sentence for searching relevant passages: ",
+)
+
 # Kept as the course baseline and as a second shape for the encoder to satisfy:
 # mean pooling, no query marker. Not used by the application.
 ALL_MINILM_L6_V2 = EmbeddingModel(

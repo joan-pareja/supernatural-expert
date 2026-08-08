@@ -3,7 +3,7 @@ type: reference
 title: Evaluation
 description: Defines the small offline and online checks used to choose the app defaults.
 status: approved
-modified: 2026-07-27T01:03:00+02:00
+modified: 2026-08-08T23:29:00+02:00
 tags:
 - evaluation
 - quality
@@ -28,7 +28,8 @@ questions and covers every document, so none is missing from the benchmark.
 Each question records the document that answers it. That label is what retrieval
 is scored against.
 
-The set is generated once and then committed. Questions never change between
+The set is generated once and then committed, as `evaluation/ground_truth.csv`,
+one row per question carrying its `document_id`. Questions never change between
 runs, which is what makes a score comparable to the one before it.
 
 No model runs inside a retrieval measurement. Search, fusion, chunking, and
@@ -50,6 +51,16 @@ Full-text search then finds it easily, and lexical search looks better than it
 would against how people really ask. The generator is asked to paraphrase and to
 avoid copying distinctive wording, so lexical and vector search are compared on
 even terms. Where the bias cannot be removed, the reported results say so.
+
+One part of it cannot be removed. Every question is anchored on a named guest
+character, town, or object, because 126 episodes of one show are otherwise too
+alike for any single document to be the answer: without an anchor, "which brother
+is possessed by a demon" belongs to dozens of episodes and the label is simply
+wrong. Anchors are rare terms, which is what lexical ranking is best at, so the
+set leans towards it by construction. That is a property of episodic retrieval
+rather than a flaw to correct, and rewording questions until the paths draw level
+would only make the measure less honest. The leaning is reported beside the
+scores.
 
 ## Retrieval evaluation
 

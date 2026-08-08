@@ -1,15 +1,18 @@
 ---
+
 type: reference
 title: Roadmap
 description: Orders the two-week build and records decisions that are still open.
 status: approved
-modified: 2026-07-27T01:03:00+02:00
+modified: 2026-08-08T19:54:00+02:00
 tags:
+
 - roadmap
 - planning
 related:
 - ./docs/rubric.md
 - ./ARCHITECTURE.md
+
 ---
 
 # Roadmap
@@ -18,8 +21,7 @@ related:
 
 ## 1. Foundation
 
-- Create the `uv` package, quality checks, Docker Compose, and PostgreSQL with
-  pgvector.
+- Create the `uv` package, quality checks, Docker Compose, and PostgreSQL with `pgvector` and `pg_search`.
 - Add a safe `.env.example` for `OPENAI_API_KEY` and Logfire credentials.
 
 ## 2. Corpus
@@ -28,22 +30,28 @@ related:
 - Load canonical corpus documents into PostgreSQL.
 - Check episode counts, required fields, revision IDs, and spoiler limits.
 
+
+
 ## 3. Search and chat
 
-- Add local ONNX embeddings and PostgreSQL text search.
+- Add local ONNX embeddings and BM25 lexical search.
 - Build all three retrieval paths: lexical, vector, and hybrid RRF. Choosing
-  between them waits for the ground truth in step 4.
+between them waits for the ground truth in step 4.
 - Add the Pydantic AI agent, citations, abstention, and spoiler refusal.
 - Build the Streamlit chat.
+
+
 
 ## 4. Quality and reporting
 
 - Create and review a small synthetic ground-truth set.
 - Compare the three retrieval paths and several answer setups against it, then
-  tune and adopt the winners.
+tune and adopt the winners.
 - Add the cross-encoder reranking stage and measure it against hybrid alone.
 - Send runs, judge results, and thumbs feedback to Logfire.
 - Build at least five reporting charts from the Logfire Query API.
+
+
 
 ## 5. Delivery
 
@@ -51,8 +59,11 @@ related:
 - Add dashboard screenshots, example questions, results, and exact run commands.
 - Pin dependency versions and prepare the public repository for peer review.
 
+
+
 ## Open decisions
 
 - Test chunking against the unsplit baseline once the ground truth exists.
 - Keep or drop each measured extra on its result. Chunking and reranking are both
-  planned, and neither is adopted for having been built.
+planned, and neither is adopted for having been built.
+

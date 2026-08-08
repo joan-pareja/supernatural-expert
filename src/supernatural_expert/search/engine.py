@@ -33,11 +33,6 @@ DEFAULT_CANDIDATES = 50
 # than tuned.
 RRF_K = 60
 
-# ts_rank's weight array, ordered {D, C, B, A}. These are PostgreSQL's defaults,
-# spelled out so the ranking is readable beside the labels the DDL assigns with
-# setweight: what is weighted A counts two and a half times what is weighted B.
-TS_RANK_WEIGHTS = "{0.1, 0.2, 0.4, 1.0}"
-
 # Everything a result needs, in the order the row is unpacked.
 RESULT_COLUMNS = (
     "unit_id",
@@ -64,23 +59,26 @@ class SearchFilters:
     episode: int | None = None
     document_type: DocumentType | None = None
 
-    def where(self) -> tuple[str, list[Any]]:
-        """Return the filter conditions and their values, both empty if unset.
+    def where(self) -> tuple[str, dict[str, Any]]:
+        """Return the filter conditions and the values they name, empty if unset.
 
         The conditions are joined here because they always combine the same way.
         The fragment does not begin with a conjunction, so it stands on its own
         and a caller attaches it to whatever predicates its own path already has.
+
+        Each value is named rather than positional, so a caller merges it into
+        its own parameters and the order it writes them in cannot matter.
         """
         conditions: list[str] = []
-        values: list[Any] = []
-        for column, value in (
-            ("season_number", self.season),
-            ("episode_number", self.episode),
-            ("document_type", self.document_type),
+        values: dict[str, Any] = {}
+        for name, column, value in (
+            ("season", "season_number", self.season),
+            ("episode", "episode_number", self.episode),
+            ("document_type", "document_type", self.document_type),
         ):
             if value is not None:
-                conditions.append(f"{column} = %s")
-                values.append(value)
+                conditions.append(f"{column} = %({name})s")
+                values[name] = value
         return " AND ".join(conditions), values
 
 
@@ -93,7 +91,7 @@ class SearchResult:
     a result appeared rather than for answering.
 
     `score` orders results within one query on one path. It is not comparable
-    across queries or across paths: lexical scores are ts_rank values, vector
+    across queries or across paths: lexical scores are BM25 values, vector
     scores are cosine similarities, and hybrid scores are fused ranks.
     """
 
@@ -170,28 +168,36 @@ class SearchEngine:
     def _search_lexical(
         self, query: str, filters: SearchFilters, candidates: int
     ) -> list[_Candidate]:
-        """Rank units by PostgreSQL full-text search over the weighted lexemes.
+        """Rank units by BM25 over the title and the piece.
 
-        `plainto_tsquery` reduces a question to word stems, drops stop words, and
-        joins what is left with AND: "What car do the brothers drive?" becomes
-        `'car' & 'brother' & 'drive'`. The stored lexemes were stemmed the same
-        way, so "brothers" in a question meets "brother" in a plot. A unit missing
-        any one stem does not match at all, which makes this path precise and
-        unforgiving as a question grows longer.
+        `|||` matches disjunctively: a unit is a candidate if it carries any of
+        the question's terms, and BM25 then scores it on how many it carries and
+        how rare each one is. Rarity is the part that matters here. In "What do
+        Dean and Bobby find left of the Roadhouse?", `dean` occurs in almost every
+        unit and identifies nothing, while `roadhous` occurs in a handful and
+        identifies the episode; BM25 weights them accordingly.
+
+        Terms are stemmed and stop words dropped on both sides, so "brothers" in
+        a question meets "brother" in a plot.
         """
-        filtered, values = filters.where()
-        # A unit must match the query, and then whatever the caller asked for.
-        where = "lexemes @@ tsquery" + (f" AND {filtered}" if filtered else "")
+        conditions, filter_values = filters.where()
+        # Either field may carry the match, and then whatever the caller asked
+        # for narrows it.
+        where = "(title ||| %(query)s OR unit_text ||| %(query)s)"
+        if conditions:
+            where += f" AND {conditions}"
         sql = f"""
-            SELECT {", ".join(RESULT_COLUMNS)},
-                   ts_rank(%s, lexemes, tsquery) AS score
-            FROM {SCHEMA}.{UNIT_TABLE},
-                 plainto_tsquery('english', %s) AS tsquery
+            SELECT
+                {", ".join(RESULT_COLUMNS)},
+                pdb.score(unit_id) AS score
+            FROM {SCHEMA}.{UNIT_TABLE}
             WHERE {where}
             ORDER BY score DESC, unit_id
-            LIMIT %s
+            LIMIT %(candidates)s
         """
-        return self._fetch(sql, [TS_RANK_WEIGHTS, query, *values, candidates])
+        return self._fetch(
+            sql, {"query": query, "candidates": candidates, **filter_values}
+        )
 
     def _search_vector(
         self, query: str, filters: SearchFilters, candidates: int
@@ -202,29 +208,45 @@ class SearchEngine:
         query marker. Encoding it as a passage instead would compare two
         different kinds of text and quietly lose accuracy.
         """
-        filtered, values = filters.where()
+        conditions, filter_values = filters.where()
         # Every unit is a candidate here, so an unfiltered search has no WHERE
         # clause at all rather than a placeholder condition.
-        where = f"WHERE {filtered}" if filtered else ""
-        vector = to_pgvector(self.encoder.encode_query(query))
+        where = f"WHERE {conditions}" if conditions else ""
         # Vectors are unit length, so cosine distance subtracted from one is the
         # cosine similarity. The scan is exact; see docs/data-model.md.
         sql = f"""
-            SELECT {", ".join(RESULT_COLUMNS)},
-                   1 - (embedding <=> %s::vector) AS score
+            SELECT
+                {", ".join(RESULT_COLUMNS)},
+                1 - (embedding <=> %(vector)s::vector) AS score
             FROM {SCHEMA}.{UNIT_TABLE}
             {where}
-            ORDER BY embedding <=> %s::vector, unit_id
-            LIMIT %s
+            ORDER BY embedding <=> %(vector)s::vector, unit_id
+            LIMIT %(candidates)s
         """
-        return self._fetch(sql, [vector, *values, vector, candidates])
+        return self._fetch(
+            sql,
+            {
+                "vector": to_pgvector(self.encoder.encode_query(query)),
+                "candidates": candidates,
+                **filter_values,
+            },
+        )
 
-    def _fetch(self, sql: str, params: list[Any]) -> list[_Candidate]:
+    def _fetch(self, sql: str, params: dict[str, Any]) -> list[_Candidate]:
+        """Run one ranking query and return its rows as candidates.
+
+        Every path selects RESULT_COLUMNS and then a score, so a row is those
+        columns by name followed by the score. Building each candidate from the
+        column names means the two orders do not have to agree.
+        """
         with self._connection.cursor() as cursor:
             cursor.execute(sql, params)
             rows = cursor.fetchall()
         return [
-            _Candidate(*row[:-1], score=float(row[-1]))  # pyright: ignore[reportAny]
+            _Candidate(
+                **dict(zip(RESULT_COLUMNS, row)),  # pyright: ignore[reportAny]
+                score=float(row[-1]),  # pyright: ignore[reportAny]
+            )
             for row in rows
         ]
 
@@ -232,7 +254,7 @@ class SearchEngine:
     def _fuse(*rankings: list[_Candidate]) -> list[_Candidate]:
         """Combine ranked lists with reciprocal rank fusion.
 
-        Only positions are used, never the underlying scores, because a ts_rank
+        Only positions are used, never the underlying scores, because a BM25
         value and a cosine similarity are on unrelated scales and adding them
         would let whichever happens to be larger decide the order.
         """

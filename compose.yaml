@@ -2,9 +2,16 @@ name: supernatural-expert
 
 services:
   db:
-    image: pgvector/pgvector:pg18
+    # Carries pg_search for BM25 ranking and pgvector for embeddings, so one
+    # database answers both search paths and there is nothing to keep in step.
+    image: paradedb/paradedb:0.25.1-pg18
     container_name: supernatural-expert-db
     restart: unless-stopped
+    # pg_search loads at startup or not at all, and a cluster keeps whatever
+    # configuration file it was initialised with, which need not name it. Setting
+    # the list here settles that either way. It is the image's own default list:
+    # dropping pg_cron leaves the image's bootstrap unable to create it.
+    command: postgres -c shared_preload_libraries=pg_search,pg_cron,pg_stat_statements
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
