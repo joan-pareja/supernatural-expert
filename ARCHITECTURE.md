@@ -3,12 +3,13 @@ type: reference
 title: Architecture
 description: Shows how ingestion, answering, evaluation, and monitoring fit together.
 status: approved
-modified: 2026-08-09T01:08:00+02:00
+modified: 2026-08-09T15:16:00+02:00
 tags:
 - architecture
 - rag
 related:
 - ./docs/agent.md
+- ./docs/chat.md
 - ./docs/ingestion.md
 - ./docs/retrieval.md
 - ./docs/evaluation.md
@@ -62,7 +63,8 @@ flowchart LR
 - A cross-encoder reranks the candidates hybrid search returns, on the same CPU
   and ONNX Runtime as the encoder. It scores query and passage together, which
   neither embedding nor RRF does. See [Retrieval](docs/retrieval.md).
-- Streamlit owns chat, feedback controls, and reporting views.
+- Streamlit owns chat, feedback controls, and reporting views. See
+  [Chat](docs/chat.md).
 
 Docker Compose will run the application and PostgreSQL with a named database
 volume. Wikipedia, OpenAI, and Logfire remain external APIs.

@@ -1,0 +1,20 @@
+# The chat's whole appearance. Streamlit's theme options carry it, so the app
+# ships no CSS and nothing here depends on Streamlit's internal class names.
+
+[theme]
+# One look for everyone. The palette is built for a light background, and
+# inheriting the viewer's dark mode would leave half of it unreadable.
+base = "light"
+
+primaryColor = "#3D6FD6"
+backgroundColor = "#F6F8FC"
+secondaryBackgroundColor = "#E8EFFA"
+textColor = "#16233A"
+linkColor = "#2F5CB8"
+borderColor = "#D3DEF0"
+
+# Rounded throughout, and fully rounded on buttons, so nothing in the page ends
+# in a hard corner.
+baseRadius = "0.75rem"
+buttonRadius = "full"
+showWidgetBorder = true

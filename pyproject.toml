@@ -17,6 +17,7 @@ dependencies = [
     "pydantic-ai-slim[openai]>=2.27.0",
     "python-dotenv>=1.2.2",
     "semantic-text-splitter>=0.32.0",
+    "streamlit>=1.61.1",
     "tokenizers>=0.23.1",
 ]
 
