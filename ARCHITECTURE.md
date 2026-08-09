@@ -3,11 +3,12 @@ type: reference
 title: Architecture
 description: Shows how ingestion, answering, evaluation, and monitoring fit together.
 status: approved
-modified: 2026-07-27T00:51:00+02:00
+modified: 2026-08-09T01:08:00+02:00
 tags:
 - architecture
 - rag
 related:
+- ./docs/agent.md
 - ./docs/ingestion.md
 - ./docs/retrieval.md
 - ./docs/evaluation.md
@@ -52,7 +53,7 @@ flowchart LR
 - Pydantic AI owns the agent loop and typed search tool. Install
   `pydantic-ai-slim[openai]`, not the full `pydantic-ai`: the project uses one
   model provider, and the full package pulls every other provider's SDK.
-- `gpt-5.4-mini` is the default answer model.
+- `gpt-5.4-mini` is the default answer model. See [Agent](docs/agent.md).
 - Embeddings run locally on CPU through ONNX Runtime, so no embedding provider,
   API key, or GPU is part of the runtime. The encoder is
   `Xenova/bge-small-en-v1.5` at 384 dimensions, pinned to a commit so repeated

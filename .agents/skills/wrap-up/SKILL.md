@@ -60,13 +60,16 @@ Use `type[(scope)][!]: summary`.
 ## Write the body
 
 - Omit the body only when the title fully captures a trivial, coherent change.
-- Size the body by semantic breadth, behavior, risk, and important decisions, not raw file or line counts.
-- Prefer verified completeness over artificial brevity. Cover every meaningful behavior, contract or schema, configuration, migration or compatibility effect, test or documentation change, dependency or generated artifact, and operator-requested correction in the commit set.
+- Write a log of what changed, not an argument for it. The body is scanned by someone asking what landed here.
+- Write one bullet per distinct change, and keep each bullet to one sentence. A bullet needing a second sentence is either two changes or one change over-explained.
+- Cover every distinct change once: behavior, contract or schema, configuration, migration or compatibility effect, test or documentation change, dependency or generated artifact, and operator-requested correction. Completeness means no change is missing, not that each is argued.
 - Consolidate mechanical churn and closely related artifacts instead of listing every file.
-- Explain both what changed and why when the motivation is not obvious from the title.
-- Use concise, verb-led bullets for a multi-part change. Capitalize each complete bullet sentence and end it with a period unless repository history clearly follows another style.
+- State why only when the diff cannot show it and no other artifact records it, and then in one clause of the bullet it belongs to. Most changes need none.
+- Name the owning document instead of restating it when the commit adds or edits a note that carries the reasoning. Repeating it copies text that already has an owner.
+- Use verb-led bullets for a multi-part change. Capitalize each complete bullet sentence and end it with a period unless repository history clearly follows another style.
 - Keep each body bullet on one physical line; do not hard-wrap bullets.
 - Do not repeat the title, replay the conversation, narrate Git commands, or pad the body with generic claims.
+- Do not stack subordinate clauses, contrast what was done against what was not, or write a sentence whose subject is a design principle. Those belong in the notes the repository keeps.
 - Do not include pull-request numbers.
 - Mention validation only when it materially helps and was actually run.
 - Add Conventional Commit footers, including `BREAKING CHANGE:`, only when verified and relevant.

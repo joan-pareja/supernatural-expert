@@ -3,12 +3,13 @@ type: reference
 title: Retrieval
 description: Defines the search baseline and evaluation-driven choices.
 status: approved
-modified: 2026-08-08T23:29:00+02:00
+modified: 2026-08-09T01:08:00+02:00
 tags:
 - retrieval
 - hybrid-search
 - rrf
 related:
+- ./agent.md
 - ./data-model.md
 - ./evaluation.md
 - ../ROADMAP.md
@@ -26,9 +27,8 @@ related:
 - Hybrid search combines both ranked lists with reciprocal rank fusion (RRF).
 
 All paths filter to seasons 1 through 6 and return source metadata for citations.
-The Pydantic AI agent calls one typed search tool and answers only from its
-results. If evidence is weak or missing, it says so instead of filling the gap
-from model memory.
+The agent reaches them through one typed search tool; [Agent](agent.md) owns what
+it may then claim.
 
 The spoiler boundary is the corpus itself, not a search argument. Nothing past
 season 6 was ever loaded, so no filter has to hold the line and none is offered.

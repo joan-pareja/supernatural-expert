@@ -14,6 +14,7 @@ dependencies = [
     "huggingface-hub>=1.24.0",
     "numpy>=2.5.1",
     "onnxruntime>=1.28.0",
+    "pydantic-ai-slim[openai]>=2.27.0",
     "python-dotenv>=1.2.2",
     "semantic-text-splitter>=0.32.0",
     "tokenizers>=0.23.1",

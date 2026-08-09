@@ -32,17 +32,36 @@ class PostgresSettings:
 
 @dataclass(frozen=True, slots=True)
 class Settings:
-    """Every setting the ingestion pipeline needs."""
+    """Every setting the project needs, whether or not this run needs all of them."""
 
     postgres: PostgresSettings
     wikipedia_user_agent: str
+    env_file: Path
+    # Absent until someone answers a question. Ingestion, indexing, and lexical
+    # search never call a model, so requiring a key here would stop a reviewer
+    # loading the corpus before they have one.
+    openai_api_key: str | None
+
+    def require_openai_api_key(self) -> str:
+        """Return the key, failing where it is needed rather than where it is read."""
+        if self.openai_api_key is None:
+            raise MissingSettingError(
+                f"OPENAI_API_KEY is missing or empty in {self.env_file}. "
+                "Answering questions needs it; loading and indexing the corpus does not."
+            )
+        return self.openai_api_key
+
+
+def _clean(values: dict[str, str | None], key: str) -> str | None:
+    value = values.get(key)
+    return value.strip() if value and value.strip() else None
 
 
 def _require(values: dict[str, str | None], key: str, env_file: Path) -> str:
-    value = values.get(key)
-    if value is None or not value.strip():
+    value = _clean(values, key)
+    if value is None:
         raise MissingSettingError(f"{key} is missing or empty in {env_file}.")
-    return value.strip()
+    return value
 
 
 def load_settings(env_file: Path = DEFAULT_ENV_FILE) -> Settings:
@@ -67,4 +86,6 @@ def load_settings(env_file: Path = DEFAULT_ENV_FILE) -> Settings:
             password=_require(values, "POSTGRES_PASSWORD", env_file),
         ),
         wikipedia_user_agent=_require(values, "WIKIPEDIA_USER_AGENT", env_file),
+        env_file=env_file,
+        openai_api_key=_clean(values, "OPENAI_API_KEY"),
     )
