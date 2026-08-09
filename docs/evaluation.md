@@ -3,7 +3,7 @@ type: reference
 title: Evaluation
 description: Defines the small offline and online checks used to choose the app defaults.
 status: approved
-modified: 2026-08-08T23:29:00+02:00
+modified: 2026-08-09T19:45:00+02:00
 tags:
 - evaluation
 - quality
@@ -22,8 +22,8 @@ related:
 
 The ground truth is synthetic questions generated from the corpus documents,
 sized to how much text a document holds: about three per season table summary,
-five per standalone plot, and four per season introduction. That is roughly 420
-questions and covers every document, so none is missing from the benchmark.
+five per standalone plot, and four per season introduction. That is 426 questions
+over all 132 documents, so none is missing from the benchmark.
 
 Each question records the document that answers it. That label is what retrieval
 is scored against.
@@ -39,7 +39,7 @@ a rerun reproduces a number rather than approximating it. This is part of why
 would spread variance across every comparison, including the ones it has nothing
 to do with.
 
-Reviewing 420 questions by hand is not realistic in this project. The document
+Reviewing 426 questions by hand is not realistic in this project. The document
 labels are checked across the whole set, which is quick and mechanical, while
 answerability is read closely only on the smaller subset used for answer
 evaluation.
@@ -65,16 +65,26 @@ scores.
 ## Retrieval evaluation
 
 The same questions run through lexical, vector, and hybrid RRF search, scored
-with hit rate and MRR.
+with hit rate at one and five and with MRR. `uv run python -m
+supernatural_expert.evaluation` runs all three over the tuning side and writes
+what each scored to `evaluation/results/retrieval_scores.csv` and how each
+compares against lexical, the simplest of them, to
+`evaluation/results/retrieval_differences.csv`.
+
+Measuring and scoring are separate. A measurement is the rank the answering
+document reached for each question, a document absent from the results counting
+as no rank rather than a poor one. The metrics are arithmetic over those ranks,
+so a tuning trial re-scores a measurement instead of searching again.
 
 The metric that counts is whichever still separates good setups from bad ones.
-The corpus holds 132 documents, so hit rate at five will sit near a perfect score
-for every setup and stop being useful, while MRR, or hit rate at one, keeps
-moving. This is confirmed against the first baseline before anything is tuned,
-because a flat measure makes tuning pointless.
+The corpus holds 132 documents, so hit rate at five was expected to sit near a
+perfect score and stop being useful. The first baseline says otherwise: it
+reaches 0.90 for hybrid, with a tenth of the questions still missing their
+document entirely, so all three measures remain live and MRR is kept as the one a
+comparison is decided on.
 
 Retrieval scoring costs nothing but search time and arithmetic, so it runs over
-the whole question set.
+every question on the side being read.
 
 ## Tuning
 
@@ -93,12 +103,23 @@ questions by luck, so a winner picked from a wide search is partly a winner by
 accident. Four defences, none of them a matter of care:
 
 - The questions are split before any tuning starts, grouped by document, so
-  questions about one episode never land on both sides.
+  questions about one episode never land on both sides. The split is a list of
+  documents rather than of questions, `evaluation/held_out.csv`, which is what
+  makes that structural: a fifth of the documents are held out, sampled from each
+  document kind separately so the six season introductions cannot all land on one
+  side. It is generated once from a fixed seed and committed, and a test
+  regenerates it to confirm the committed file is the one the seed produces.
 - Tuning sees only the tuning side. The held-out side is read once, at the end.
 - Both scores are reported. The gap between them is the measurement; a tuned
   number alone looks trustworthy whether or not it is.
-- Overlapping confidence intervals, bootstrapped over the questions, count as a
-  tie, and a tie goes to the simpler setup.
+- A setup is compared against a simpler one question by question, and the
+  difference between the two is what carries the confidence interval. Every setup
+  answers the same questions, so each question yields a pair, and subtracting
+  removes the difficulty the two share instead of measuring it twice. Two
+  separate intervals can overlap while the difference between the setups is real,
+  which is why an overlap is not read as a tie.
+- An interval on that difference which still contains zero counts as a tie, and a
+  tie goes to the simpler setup.
 
 ## Answer evaluation
 
