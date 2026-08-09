@@ -3,7 +3,7 @@ type: reference
 title: Evaluation
 description: Defines the small offline and online checks used to choose the app defaults.
 status: approved
-modified: 2026-08-09T22:37:00+02:00
+modified: 2026-08-10T00:56:00+02:00
 tags:
 - evaluation
 - quality
@@ -38,6 +38,14 @@ a rerun reproduces a number rather than approximating it. This is part of why
 [Retrieval](retrieval.md) carries no query rewriting stage: a model in that path
 would spread variance across every comparison, including the ones it has nothing
 to do with.
+
+That holds for the pipeline and not for the deployed system, which is a boundary
+worth naming. A measurement searches the question verbatim. The agent does not:
+it decides what to search for and writes its own query, as [Agent](agent.md)
+describes, so the chat searches on a model's wording rather than the viewer's. A
+retrieval score is therefore what the paths reach on a well-put question, and an
+upper bound on what the chat retrieves rather than a reading of it. The gap
+between the two falls to answer evaluation, which runs the whole loop.
 
 Reviewing 426 questions by hand is not realistic in this project. The document
 labels are checked across the whole set, which is quick and mechanical, while

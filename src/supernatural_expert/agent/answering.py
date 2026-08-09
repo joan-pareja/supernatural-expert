@@ -18,16 +18,25 @@ import sys
 from dataclasses import dataclass, field
 from typing import Annotated
 
+from opentelemetry import trace
 from pydantic import Field
 from pydantic_ai import Agent, AgentRunResult, ModelMessage, ModelRetry, RunContext
 from pydantic_ai.models.openai import OpenAIResponsesModel
 from pydantic_ai.providers.openai import OpenAIProvider
 
 from supernatural_expert.config import Settings, load_settings
-from supernatural_expert.search.engine import SearchEngine, SearchFilters
+from supernatural_expert.monitoring.telemetry import configure_telemetry
+from supernatural_expert.search.engine import SearchEngine, SearchFilters, SearchPath
 from supernatural_expert.search.index import connect
 
 ANSWER_MODEL = "gpt-5.4-mini"
+
+# What an answer searches with, settled by the measurements in
+# docs/evaluation.md rather than chosen per question. Reranking is the tool's to
+# set and never the model's: a model choosing it would turn an ordering
+# guarantee into a preference.
+SEARCH_PATH: SearchPath = "hybrid"
+RERANK_ANSWERS = True
 
 # Documents one search hands the model. Each carries a whole episode plot, so
 # this is a context budget as much as a recall setting: past a handful, the
@@ -43,8 +52,16 @@ You answer questions about the television series Supernatural, seasons 1 to 6,
 for a viewer who is watching it now.
 
 Search before answering anything about the show, and write the answer only from
-what the search returned. Search again, with different wording or narrowed to a
-season or episode, when the first results do not settle the question.
+what the search returned. Search again, with different wording, when the first
+results do not settle the question.
+
+Search in the words the series uses rather than the words of the question. A
+viewer describes things loosely, and the documents carry the show's own names for
+them, so the search that finds an episode is the one written in its vocabulary.
+
+Leave the season and episode filters unset unless the question names one.
+Narrowing to a season inferred from earlier results hides every document outside
+it, the answer included.
 
 Cite every document the answer rests on by its document_id.
 
@@ -149,11 +166,25 @@ def search_episodes(
     """
     results = ctx.deps.engine.search(
         query,
-        path="hybrid",
+        path=SEARCH_PATH,
         limit=ANSWER_DOCUMENTS,
         filters=SearchFilters(season=season, episode=episode),
-        rerank=True,
+        rerank=RERANK_ANSWERS,
     )
+    # The tool's own span is the one running here, and instrumentation already
+    # recorded the arguments and the result on it. Only what search did with them
+    # is missing, so this adds that rather than opening a second span around the
+    # same three seconds. Without a configured Logfire these calls land on a
+    # non-recording span and do nothing.
+    #
+    # The settings are recorded rather than assumed, so a trace still explains
+    # itself after they change, and the ranked ids are lifted out of the result
+    # because a query across traces should not have to parse five episode plots
+    # to learn which documents came back.
+    span = trace.get_current_span()
+    span.set_attribute("search.path", SEARCH_PATH)
+    span.set_attribute("search.rerank", RERANK_ANSWERS)
+    span.set_attribute("search.documents", [result.document_id for result in results])
     documents = [
         RetrievedDocument(
             document_id=result.document_id,
@@ -232,6 +263,7 @@ def main() -> int:
         return 2
 
     settings = load_settings()
+    configure_telemetry(settings)
     model = build_model(settings)
 
     connection = connect(settings)

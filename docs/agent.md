@@ -3,7 +3,7 @@ type: reference
 title: Agent
 description: Defines the answering loop, its search tool, and what an answer may claim.
 status: approved
-modified: 2026-08-09T13:35:00+02:00
+modified: 2026-08-09T23:45:00+02:00
 tags:
 - agent
 - pydantic-ai
@@ -25,6 +25,12 @@ Pydantic AI owns the loop. The model receives the question and one tool, decides
 whether to search and with what wording, reads what comes back, and searches
 again when the results do not settle the question. Nothing in the application
 schedules those calls or caps them by hand.
+
+What the model is told about that wording is the one lever over it. A viewer
+describes things loosely and the documents carry the show's own names, so the
+instructions ask for a query written in the series' vocabulary rather than the
+question's. Neither search path can bridge that gap on its own: a rephrasing is
+not a synonym either ranking can see.
 
 The loop is synchronous. PostgreSQL access and ONNX inference both block, so an
 asynchronous agent would wait on the same work through more machinery, and the

@@ -178,8 +178,7 @@ class SearchEngine:
 
         Reranking is a stage over whichever path ran rather than a path of its
         own, so every path can be measured with it and without it. It is off
-        here and switched on where the engine is built, never by the agent; a
-        model choosing it would make an ordering guarantee a preference.
+        here and switched on by the caller.
         """
         filters = filters or SearchFilters()
         if path == "lexical":

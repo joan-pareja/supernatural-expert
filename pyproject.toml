@@ -12,8 +12,10 @@ requires-python = ">=3.13,<3.14"
 dependencies = [
     "dlt[postgres]>=1.29.1",
     "huggingface-hub>=1.24.0",
+    "logfire>=4.40.0",
     "numpy>=2.5.1",
     "onnxruntime>=1.28.0",
+    "opentelemetry-api>=1.44.0",
     "pydantic-ai-slim[openai]>=2.27.0",
     "python-dotenv>=1.2.2",
     "semantic-text-splitter>=0.32.0",

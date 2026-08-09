@@ -23,6 +23,7 @@ from supernatural_expert.agent.answering import (
     build_model,
 )
 from supernatural_expert.config import load_settings
+from supernatural_expert.monitoring.telemetry import configure_telemetry
 from supernatural_expert.search.engine import SearchEngine
 from supernatural_expert.search.index import connect
 
@@ -66,8 +67,13 @@ def load_expert() -> Expert:
     Everything here costs seconds and none of it varies by question, which is why
     the page opens fast and a question does not pay for the connection again. The
     connection is deliberately never closed: it lives as long as the server does.
+
+    Telemetry is configured here for the same reason it is cached rather than for
+    what it costs: it is process-wide, and Streamlit reruns this file on every
+    keystroke it handles.
     """
     settings = load_settings()
+    configure_telemetry(settings)
     return Expert(
         model=build_model(settings),
         engine=SearchEngine(connect(settings)),

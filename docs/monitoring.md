@@ -3,7 +3,7 @@ type: reference
 title: Monitoring
 description: Defines Logfire as the single telemetry and feedback source.
 status: approved
-modified: 2026-07-27T00:22:00+02:00
+modified: 2026-08-10T01:52:00+02:00
 tags:
 - monitoring
 - logfire
@@ -24,8 +24,32 @@ user feedback. Pydantic AI instrumentation covers agent and model calls. Small
 custom spans cover retrieval and other app work that automatic instrumentation
 cannot explain.
 
+`supernatural_expert.monitoring.telemetry` configures Logfire and instruments the
+agent. Configuring is process-wide, so it happens at an entry point and nowhere
+else: the command line before it answers, and the chat inside the cached loader
+that Streamlit runs once per server rather than once per rerun.
+
+Instrumentation covers the model call, the tool call, the token usage, and the
+timing of each. The tool span already carries the arguments the model chose and
+everything the search returned, and it lasts as long as the search inside it, so
+a span of its own around that call would repeat both.
+
+What instrumentation cannot know is how the search was run and how it ended up
+ranked. `search_episodes` therefore adds `search.path`, `search.rerank`, and
+`search.documents` to the span already covering it. The last of those lifts the
+ranked identifiers out of the returned documents, so a query across traces reads
+an array instead of parsing five episode plots. The project opens no spans of its
+own.
+
 Thumbs-up and thumbs-down actions are structured Logfire events tied to the run
 and answer. PostgreSQL must not keep a duplicate feedback or monitoring copy.
+
+## What is sent
+
+A trace carries the question, the retrieved text, and the answer, so questions
+asked of the chat leave the machine when a token is set. The corpus is public
+Wikipedia and the project is a personal one, so this costs nothing worth
+protecting and is what makes a trace worth reading at all.
 
 ## Optional by design
 

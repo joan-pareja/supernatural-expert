@@ -41,6 +41,9 @@ class Settings:
     # search never call a model, so requiring a key here would stop a reviewer
     # loading the corpus before they have one.
     openai_api_key: str | None
+    # Absent means telemetry is off, which is a supported way to run the project
+    # rather than a misconfiguration. See docs/monitoring.md.
+    logfire_write_token: str | None
 
     def require_openai_api_key(self) -> str:
         """Return the key, failing where it is needed rather than where it is read."""
@@ -88,4 +91,5 @@ def load_settings(env_file: Path = DEFAULT_ENV_FILE) -> Settings:
         wikipedia_user_agent=_require(values, "WIKIPEDIA_USER_AGENT", env_file),
         env_file=env_file,
         openai_api_key=_clean(values, "OPENAI_API_KEY"),
+        logfire_write_token=_clean(values, "LOGFIRE_WRITE_TOKEN"),
     )
