@@ -152,6 +152,7 @@ def search_episodes(
         path="hybrid",
         limit=ANSWER_DOCUMENTS,
         filters=SearchFilters(season=season, episode=episode),
+        rerank=True,
     )
     documents = [
         RetrievedDocument(

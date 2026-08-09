@@ -16,6 +16,7 @@ from typing import Any, Literal
 
 from supernatural_expert.embedding.encoder import Encoder
 from supernatural_expert.ingestion.documents import DocumentType
+from supernatural_expert.reranking.reranker import Reranker
 from supernatural_expert.search.index import SCHEMA, UNIT_TABLE, to_pgvector
 
 SearchPath = Literal["lexical", "vector", "hybrid"]
@@ -26,6 +27,12 @@ DEFAULT_LIMIT = 10
 # document one path ranks poorly can still win if the other ranks it well, and
 # fusion can only see what both lists contain.
 DEFAULT_CANDIDATES = 50
+
+# Units the cross-encoder reads when reranking. It runs once per unit at query
+# time and nothing about it can be precomputed, so the shortlist stays far below
+# the candidate depth. Everything past it keeps the position the first stage gave
+# it, which is what lets a reranked search still fill the limit.
+RERANK_DEPTH = 20
 
 # The constant in 1 / (k + rank), from the paper that introduced the method. It
 # flattens the gap between the top few positions so one path cannot dominate the
@@ -92,7 +99,8 @@ class SearchResult:
 
     `score` orders results within one query on one path. It is not comparable
     across queries or across paths: lexical scores are BM25 values, vector
-    scores are cosine similarities, and hybrid scores are fused ranks.
+    scores are cosine similarities, hybrid scores are fused ranks, and a
+    reranked score is the cross-encoder's logit for this query and this piece.
     """
 
     document_id: str
@@ -123,22 +131,36 @@ class _Candidate:
 class SearchEngine:
     """Runs every search path against one index.
 
-    The connection and encoder are held rather than created per call, because
-    loading an encoder's weights costs far more than running a search does.
-    Instances are not thread-safe, because the encoder is not.
+    The models are held rather than created per call, because loading their
+    weights costs far more than running a search does. Instances are not
+    thread-safe, because neither model is.
     """
 
-    def __init__(self, connection: Any, encoder: Encoder | None = None) -> None:
+    def __init__(
+        self,
+        connection: Any,
+        encoder: Encoder | None = None,
+        reranker: Reranker | None = None,
+    ) -> None:
         self._connection = connection
-        # Built on first vector search rather than here, so a lexical-only
-        # session never pays for weights it does not use.
+        # Both models are built on first use, so a lexical-only session never
+        # pays for weights it does not use and a search that never reranks never
+        # loads the cross-encoder at all. Either can be supplied instead, which
+        # is how a test drives a path without its weights on disk.
         self._encoder = encoder
+        self._reranker = reranker
 
     @property
     def encoder(self) -> Encoder:
         if self._encoder is None:
             self._encoder = Encoder()
         return self._encoder
+
+    @property
+    def reranker(self) -> Reranker:
+        if self._reranker is None:
+            self._reranker = Reranker()
+        return self._reranker
 
     def search(
         self,
@@ -147,11 +169,17 @@ class SearchEngine:
         limit: int = DEFAULT_LIMIT,
         filters: SearchFilters | None = None,
         candidates: int = DEFAULT_CANDIDATES,
+        rerank: bool = False,
     ) -> list[SearchResult]:
         """Return the best documents for `query`, best first.
 
         One entry point for every path, so choosing between them is an argument
         rather than a different call.
+
+        Reranking is a stage over whichever path ran rather than a path of its
+        own, so every path can be measured with it and without it. It is off
+        here and switched on where the engine is built, never by the agent; a
+        model choosing it would make an ordering guarantee a preference.
         """
         filters = filters or SearchFilters()
         if path == "lexical":
@@ -163,6 +191,8 @@ class SearchEngine:
                 self._search_lexical(query, filters, candidates),
                 self._search_vector(query, filters, candidates),
             )
+        if rerank:
+            ranked = self._rerank(query, ranked)
         return self._collapse(ranked, limit)
 
     def _search_lexical(
@@ -270,6 +300,34 @@ class SearchEngine:
                 scores.items(), key=lambda item: (-item[1], item[0])
             )
         ]
+
+    def _rerank(
+        self, query: str, ranked: list[_Candidate], depth: int = RERANK_DEPTH
+    ) -> list[_Candidate]:
+        """Reorder the shortlist by reading each piece together with the query.
+
+        Only the head is scored, and the rest is appended below it untouched.
+        The first stage decides what can be found at all, and a unit it ranked
+        past the shortlist stays past it; what this changes is the order of what
+        it did find. Keeping the tail matters because the head holds fewer
+        documents than units, so dropping it could return less than the limit.
+        """
+        head = ranked[:depth]
+        if not head:
+            return ranked
+
+        scored = zip(
+            head, self.reranker.score(query, [unit.unit_text for unit in head])
+        )
+        # unit_id breaks a tie the same way every other ranking here does, so a
+        # repeated search returns the same order.
+        reordered = [
+            replace(unit, score=score)
+            for unit, score in sorted(
+                scored, key=lambda pair: (-pair[1], pair[0].unit_id)
+            )
+        ]
+        return reordered + ranked[depth:]
 
     @staticmethod
     def _collapse(ranked: list[_Candidate], limit: int) -> list[SearchResult]:

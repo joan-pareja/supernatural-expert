@@ -3,7 +3,7 @@ type: reference
 title: Evaluation
 description: Defines the small offline and online checks used to choose the app defaults.
 status: approved
-modified: 2026-08-09T19:45:00+02:00
+modified: 2026-08-09T22:37:00+02:00
 tags:
 - evaluation
 - quality
@@ -64,37 +64,50 @@ scores.
 
 ## Retrieval evaluation
 
-The same questions run through lexical, vector, and hybrid RRF search, scored
-with hit rate at one and five and with MRR. `uv run python -m
-supernatural_expert.evaluation` runs all three over the tuning side and writes
-what each scored to `evaluation/results/retrieval_scores.csv` and how each
-compares against lexical, the simplest of them, to
-`evaluation/results/retrieval_differences.csv`.
+The same questions run through lexical, vector, and hybrid RRF search, and
+through hybrid with cross-encoder reranking over it, scored with hit rate at one
+and five and with MRR. `uv run python -m supernatural_expert.evaluation` runs all
+four over the tuning side and writes what each scored to
+`evaluation/results/retrieval_scores.csv` and how each compares against the
+simpler setup it must beat to `evaluation/results/retrieval_differences.csv`.
+That is lexical for the three paths, and the unreranked path for a reranked one:
+every extra is judged against what it was added to.
 
 Measuring and scoring are separate. A measurement is the rank the answering
 document reached for each question, a document absent from the results counting
 as no rank rather than a poor one. The metrics are arithmetic over those ranks,
-so a tuning trial re-scores a measurement instead of searching again.
+so two setups can be compared question by question once the searching is done.
 
 The metric that counts is whichever still separates good setups from bad ones.
 The corpus holds 132 documents, so hit rate at five was expected to sit near a
-perfect score and stop being useful. The first baseline says otherwise: it
-reaches 0.90 for hybrid, with a tenth of the questions still missing their
-document entirely, so all three measures remain live and MRR is kept as the one a
-comparison is decided on.
+perfect score and stop being useful. It does not: the best setup reaches 0.936,
+leaving a sixteenth of the questions with their document nowhere in the results,
+so all three measures remain live. MRR is the one a comparison is decided on,
+because ordering is what a second stage can still move once recall is settled.
 
 Retrieval scoring costs nothing but search time and arithmetic, so it runs over
 every question on the side being read.
 
 ## Tuning
 
-Optuna searches the parameters worth tuning: the RRF `k` constant, which sets how
-strongly top ranks are favoured, the weight given to each search path, and how
-many results each path contributes before fusion.
+Optuna was to search what fusion exposes: the RRF `k` constant, a weight for each
+search path, and the depth each path contributes before fusion. Separating the
+measurement from the scoring was partly for its benefit, so a trial could
+re-score ranks it already held rather than search again.
 
-Chunking is tested as one comparison, split against unsplit, and nothing more.
-Chunk sizes are not swept. The embedding model is not swept either; that choice
-rests on public benchmarks, as [Retrieval](retrieval.md) explains.
+It was dropped once the paths were measured, because each of those parameters
+turned out to be settled without it. `k` is the published default of 60, and it
+flattens the top positions by design; moving it shifts fused ranks too little to
+repay the run. A candidate depth of 50 already reaches far past where either path
+still contributes over 132 documents. A per-path weight is the one dial that
+would have moved the result, and it is also exactly the dial a few hundred
+questions fit rather than measure: a lead bought that way is one the held-out
+side would not confirm. Chunk size and the embedding model follow the encoder
+rather than these questions, as [Retrieval](retrieval.md) explains.
+
+The ground truth is spent on comparing whole setups instead. That is what settled
+hybrid against its two parts and reranking against hybrid, and the reranker moved
+the score by more than any search over fusion could have.
 
 ## Not fooling ourselves
 
@@ -102,24 +115,26 @@ Every extra setup compared is another chance for one to fit these particular
 questions by luck, so a winner picked from a wide search is partly a winner by
 accident. Four defences, none of them a matter of care:
 
-- The questions are split before any tuning starts, grouped by document, so
+- The questions are split before any setup is compared, grouped by document, so
   questions about one episode never land on both sides. The split is a list of
   documents rather than of questions, `evaluation/held_out.csv`, which is what
   makes that structural: a fifth of the documents are held out, sampled from each
   document kind separately so the six season introductions cannot all land on one
   side. It is generated once from a fixed seed and committed, and a test
   regenerates it to confirm the committed file is the one the seed produces.
-- Tuning sees only the tuning side. The held-out side is read once, at the end.
-- Both scores are reported. The gap between them is the measurement; a tuned
-  number alone looks trustworthy whether or not it is.
+- Every comparison sees only the tuning side. The held-out side is read once, at
+  the end.
+- Both scores are reported. The gap between them is the measurement; the chosen
+  setup's own number looks trustworthy whether or not it is.
 - A setup is compared against a simpler one question by question, and the
   difference between the two is what carries the confidence interval. Every setup
   answers the same questions, so each question yields a pair, and subtracting
   removes the difficulty the two share instead of measuring it twice. Two
   separate intervals can overlap while the difference between the setups is real,
-  which is why an overlap is not read as a tie.
-- An interval on that difference which still contains zero counts as a tie, and a
-  tie goes to the simpler setup.
+  which is why an overlap is not read as a tie. An interval on that difference
+  which still contains zero counts as a tie, and a tie goes to the simpler setup.
+  The search path departs from that once, on grounds [Retrieval](retrieval.md)
+  states.
 
 ## Answer evaluation
 

@@ -1,4 +1,4 @@
-"""The ground truth questions and the split that keeps a tuned score honest.
+"""The ground truth questions and the split that keeps a chosen score honest.
 
 Regenerate the split from the repository root, which overwrites the committed
 file and invalidates every score measured against the old one:
@@ -25,7 +25,7 @@ HELD_OUT_FILE = EVALUATION_DIR / "held_out.csv"
 RESULTS_DIR = EVALUATION_DIR / "results"
 
 # A fifth of the documents. Large enough that the held-out score is not decided
-# by a handful of questions, small enough that tuning still sees most of the set.
+# by a handful of questions, small enough that comparisons still see most of it.
 HELD_OUT_FRACTION = 0.2
 
 # Fixed so the split is reproducible from the questions alone, and the committed

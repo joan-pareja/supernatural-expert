@@ -19,16 +19,20 @@ import onnxruntime as ort
 from numpy.typing import NDArray
 from tokenizers import Tokenizer
 
-from supernatural_expert.embedding.models import DEFAULT_MODEL, EmbeddingModel
+from supernatural_expert.embedding.models import (
+    DEFAULT_MODEL,
+    EmbeddingModel,
+    OnnxModel,
+)
 
 Vectors = NDArray[np.float32]
 
 
-class EmbeddingModelNotDownloadedError(RuntimeError):
-    """Raised when the pinned model is not on disk yet."""
+class ModelNotDownloadedError(RuntimeError):
+    """Raised when a pinned model, encoder or reranker, is not on disk yet."""
 
 
-def load_tokenizer(model: EmbeddingModel) -> Tokenizer:
+def load_tokenizer(model: OnnxModel) -> Tokenizer:
     """Load a model's tokenizer with no truncation or padding applied.
 
     Callers add the limits they need. The chunker in particular must count the
@@ -37,9 +41,9 @@ def load_tokenizer(model: EmbeddingModel) -> Tokenizer:
     """
     path = model.directory / "tokenizer.json"
     if not path.is_file():
-        raise EmbeddingModelNotDownloadedError(
+        raise ModelNotDownloadedError(
             f"{model.repository} is missing tokenizer.json in {model.directory}. "
-            "Run: uv run python -m supernatural_expert.embedding"
+            f"Run: {model.download_command}"
         )
     tokenizer = Tokenizer.from_file(str(path))
     tokenizer.no_truncation()  # pyright: ignore[reportUnknownMemberType]
@@ -58,9 +62,9 @@ class Encoder:
         self.model = model
         weights = model.directory / "model.onnx"
         if not weights.is_file():
-            raise EmbeddingModelNotDownloadedError(
+            raise ModelNotDownloadedError(
                 f"{model.repository} is missing model.onnx in {model.directory}. "
-                "Run: uv run python -m supernatural_expert.embedding"
+                f"Run: {model.download_command}"
             )
 
         self._tokenizer = load_tokenizer(model)

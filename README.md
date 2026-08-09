@@ -33,9 +33,10 @@ runtime design. See [Corpus](docs/corpus.md), [Ingestion](docs/ingestion.md), an
 
 The plan covers all nine two-point project sections: problem, retrieval, two
 forms of evaluation, interface, ingestion, monitoring, containerization, and
-reproducibility. Hybrid search is planned, and a cross-encoder reranker is the
-one best-practice point still to be measured. Query rewriting and cloud
-deployment are both declined, for reasons the linked documents give.
+reproducibility. Hybrid search and a cross-encoder reranker are both measured
+against the ground truth and both kept, which takes the two best-practice points
+the project pursues. Query rewriting and cloud deployment are both declined, for
+reasons the linked documents give.
 
 The exact checklist and evidence locations live in [Rubric](docs/rubric.md). It
 tracks the official [LLM Zoomcamp project rubric](https://github.com/DataTalksClub/llm-zoomcamp/blob/main/project.md).
@@ -58,13 +59,15 @@ docker compose up -d --wait
 ```
 
 `setup-dev.ps1` creates `.env` from `.env.example`, installs the locked
-dependencies with `uv`, downloads the pinned ONNX embedding model into `models/`,
-and links the shared agent skills. Every step keeps what is already there, so the
+dependencies with `uv`, downloads the pinned ONNX models into `models/`, and
+links the shared agent skills. Every step keeps what is already there, so the
 script is safe to rerun. Stop the database with `docker compose down`; adding
 `-v` also deletes its data.
 
-The embedding model is about 128 MB and is fetched rather than committed. Running
-`uv run python -m supernatural_expert.embedding` again is how you restore it.
+Two models are fetched rather than committed: the 128 MB encoder that indexes and
+searches, and the 91 MB cross-encoder that reorders what search returns. Running
+`uv run python -m supernatural_expert.embedding` and `uv run python -m
+supernatural_expert.reranking` again is how you restore them.
 
 **`OPENAI_API_KEY` is the only value you must supply.** Everything else in
 `.env.example` already works. The two Logfire tokens are optional: without them

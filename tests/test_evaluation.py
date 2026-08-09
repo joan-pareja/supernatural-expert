@@ -49,7 +49,7 @@ class StubEngine:
 
     def __init__(self, results: list[SearchResult]) -> None:
         self.results = results
-        self.calls: list[tuple[str, str, int, int]] = []
+        self.calls: list[tuple[str, str, int, int, bool]] = []
 
     def search(
         self,
@@ -58,8 +58,9 @@ class StubEngine:
         limit: int = 10,
         filters: SearchFilters | None = None,
         candidates: int = 50,
+        rerank: bool = False,
     ) -> list[SearchResult]:
-        self.calls.append((query, path, limit, candidates))
+        self.calls.append((query, path, limit, candidates, rerank))
         return self.results
 
 
@@ -119,8 +120,8 @@ def test_measure_asks_the_engine_for_each_question() -> None:
 
     assert ranks == [2, None]
     assert engine.calls == [
-        ("Who is Jessica?", "lexical", 5, 20),
-        ("Who wins?", "lexical", 5, 20),
+        ("Who is Jessica?", "lexical", 5, 20, False),
+        ("Who wins?", "lexical", 5, 20, False),
     ]
 
 

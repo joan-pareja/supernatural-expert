@@ -3,7 +3,7 @@ type: reference
 title: Course rubric
 description: Maps the LLM Zoomcamp project rubric to planned evidence.
 status: approved
-modified: 2026-07-27T01:03:00+02:00
+modified: 2026-08-09T22:19:00+02:00
 tags:
 - rubric
 - course
@@ -41,15 +41,14 @@ Base target: **18/18**.
 
 | Item | Point | State |
 |---|---:|---|
-| Hybrid text and vector search | 1 | Planned and evaluated with RRF. |
-| Document reranking | 1 | Planned: an `ms-marco-MiniLM-L-6-v2` cross-encoder over the hybrid candidates. See [Retrieval](retrieval.md). |
+| Hybrid text and vector search | 1 | Built with RRF and measured against both paths alone. See [Retrieval](retrieval.md). |
+| Document reranking | 1 | An `ms-marco-MiniLM-L-6-v2` cross-encoder over the hybrid candidates, measured and adopted. See [Retrieval](retrieval.md). |
 | User query rewriting | 1 | Not pursued: a model call on every turn, and a non-deterministic step beside the evaluations. See [Retrieval](retrieval.md). |
 | Cloud deployment | 2 | Not pursued. |
 
-The technical target is **20 points without cloud**. The currently locked plan
-accounts for **19**. Reranking is planned and scheduled for measurement but not
-locked, because the evidence rule below counts a measured result and not an
-intention.
+The technical target is **20 points without cloud**, and the locked plan now
+accounts for all of them. Reranking was the last one outstanding; it is measured
+and adopted, which is what the evidence rule below asks for.
 
 Two points are declined rather than missed. Cloud deployment is outside the
 delivery target in [Scope](scope.md), and query rewriting would cost more in

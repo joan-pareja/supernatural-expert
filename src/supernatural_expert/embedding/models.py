@@ -11,13 +11,36 @@ are simply worse, which is the failure mode this shape exists to prevent.
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal
+from typing import Literal, Protocol
 
 from supernatural_expert.config import REPOSITORY_ROOT
 
 # Weights are large and reproducible from the pinned revision, so they are
 # downloaded rather than committed. See .gitignore.
 MODELS_DIR = REPOSITORY_ROOT / "models"
+
+
+class OnnxModel(Protocol):
+    """All that fetching a model and loading its tokenizer need to know.
+
+    Downloading and tokenizing care about a repository, a revision, and a place
+    on disk, and nothing about what the graph computes. Stating that much as a
+    protocol lets a cross-encoder, which has no dimensions and no pooling, reuse
+    the same plumbing without pretending to be an encoder.
+    """
+
+    @property
+    def repository(self) -> str: ...
+
+    @property
+    def revision(self) -> str: ...
+
+    @property
+    def directory(self) -> Path: ...
+
+    @property
+    def download_command(self) -> str: ...
+
 
 # How one vector is drawn from the per-token outputs. Averaging every token under
 # the attention mask suits models trained that way; others were trained to carry
@@ -54,6 +77,10 @@ class EmbeddingModel:
     @property
     def directory(self) -> Path:
         return MODELS_DIR / self.repository
+
+    @property
+    def download_command(self) -> str:
+        return "uv run python -m supernatural_expert.embedding"
 
 
 # Xenova republishes sentence-transformers and BAAI encoders in ONNX form.

@@ -1,9 +1,9 @@
 ---
 type: reference
 title: Roadmap
-description: Orders the two-week build and records decisions that are still open.
+description: Orders the two-week build.
 status: approved
-modified: 2026-08-09T00:06:00+02:00
+modified: 2026-08-09T22:37:00+02:00
 tags:
 - roadmap
 - planning
@@ -39,8 +39,8 @@ related:
 ## 4. Quality and reporting
 
 - Create and review a small synthetic ground-truth set.
-- Compare the three retrieval paths and several answer setups against it, then
-  tune and adopt the winners.
+- Compare the three retrieval paths and several answer setups against it, and
+  adopt each winner on its measured result rather than for having been built.
 - Add the cross-encoder reranking stage and measure it against hybrid alone.
 - Send runs, judge results, and thumbs feedback to Logfire.
 - Build at least five reporting charts from the Logfire Query API.
@@ -50,9 +50,3 @@ related:
 - Test the clean Docker Compose flow on Windows.
 - Add dashboard screenshots, example questions, results, and exact run commands.
 - Pin dependency versions and prepare the public repository for peer review.
-
-## Open decisions
-
-- Test chunking against the unsplit baseline once the ground truth exists.
-- Keep or drop each measured extra on its result. Chunking and reranking are both
-  planned, and neither is adopted for having been built.

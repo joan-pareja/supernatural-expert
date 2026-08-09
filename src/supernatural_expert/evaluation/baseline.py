@@ -1,4 +1,4 @@
-"""Scores the three retrieval paths before anything is tuned.
+"""Scores every retrieval setup the project can run, and compares them.
 
 Run it from the repository root, after the index is built:
 
@@ -7,16 +7,16 @@ Run it from the repository root, after the index is built:
 Only the tuning side is read. The held-out side stays unread until a setup has
 been chosen, which is the whole point of having split it.
 
-This is the run that decides whether tuning is worth doing. The corpus holds 132
-documents, so a measure that is already near its ceiling here cannot separate a
-tuned setup from an untuned one, and a search over it would be fitting noise.
+This is the run every retrieval decision rests on: which path ships, and whether
+a stage added over it earns what it costs.
 
-Two tables come out of it. Scores say how each path did; differences say whether
-any path beat the simplest one, which is the question a choice actually rests on.
-See docs/evaluation.md.
+Two tables come out of it. Scores say how each setup did; differences say whether
+it beat the simpler setup it was measured against, which is the question a choice
+actually asks. See docs/evaluation.md.
 """
 
 import csv
+from dataclasses import dataclass
 from pathlib import Path
 
 from supernatural_expert.config import load_settings
@@ -38,24 +38,41 @@ from supernatural_expert.evaluation.retrieval import (
 from supernatural_expert.search.engine import SearchEngine, SearchPath
 from supernatural_expert.search.index import connect
 
-PATHS: tuple[SearchPath, ...] = ("lexical", "vector", "hybrid")
 
-# What every other path is compared against. Lexical is the simplest of the
-# three: one index, no encoder, no fusion. A path that cannot be told apart from
-# it has not earned what it costs.
-SIMPLEST_PATH: SearchPath = "lexical"
+@dataclass(frozen=True, slots=True)
+class Setup:
+    """One searchable configuration and the simpler one it must beat.
+
+    `against` names that simpler setup, which is lexical for the paths and the
+    unreranked path for a reranked one: each extra is judged against what it was
+    added to, so a stage that cannot be told apart from the thing it wraps has
+    not earned what it costs. The baseline itself has nothing below it.
+    """
+
+    label: str
+    path: SearchPath
+    rerank: bool = False
+    against: str | None = "lexical"
+
+
+SETUPS = (
+    Setup("lexical", "lexical", against=None),
+    Setup("vector", "vector"),
+    Setup("hybrid", "hybrid"),
+    Setup("hybrid+rerank", "hybrid", rerank=True, against="hybrid"),
+)
 
 SCORES_FILE = RESULTS_DIR / "retrieval_scores.csv"
 DIFFERENCES_FILE = RESULTS_DIR / "retrieval_differences.csv"
 
 SCORE_COLUMNS = (
-    ["path", "questions"]
+    ["setup", "questions"]
     + [f"hit_rate_{at}" for at in HIT_RATE_RANKS]
     + ["mrr", "mrr_low", "mrr_high"]
 )
 
 DIFFERENCE_COLUMNS = [
-    "path",
+    "setup",
     "against",
     "mean",
     "low",
@@ -71,10 +88,10 @@ def _decimal(value: float) -> str:
     return f"{value:.4f}"
 
 
-def score_row(path: SearchPath, scored: Score) -> list[str]:
-    """Render one scored path for the table and the file alike."""
+def score_row(label: str, scored: Score) -> list[str]:
+    """Render one scored setup for the table and the file alike."""
     return [
-        path,
+        label,
         str(scored.questions),
         *(_decimal(scored.hit_rates[at]) for at in HIT_RATE_RANKS),
         _decimal(scored.mrr),
@@ -82,11 +99,11 @@ def score_row(path: SearchPath, scored: Score) -> list[str]:
     ]
 
 
-def difference_row(path: SearchPath, difference: Difference) -> list[str]:
+def difference_row(setup: Setup, difference: Difference) -> list[str]:
     """Render one comparison, with the counts the mean was built from."""
     return [
-        path,
-        SIMPLEST_PATH,
+        setup.label,
+        str(setup.against),
         _decimal(difference.mean),
         *(_decimal(bound) for bound in difference.interval),
         "tie" if difference.tie else "decided",
@@ -115,19 +132,19 @@ def write_results(columns: list[str], rows: list[list[str]], path: Path) -> None
         writer.writerows(rows)
 
 
-def run(
-    engine: SearchEngine, questions: list[Question]
-) -> dict[SearchPath, list[int | None]]:
-    """Measure every path over the same questions, reporting each as it finishes.
+def run(engine: SearchEngine, questions: list[Question]) -> dict[str, list[int | None]]:
+    """Measure every setup over the same questions, reporting each as it finishes.
 
     The measurements are returned rather than the scores, because comparing two
-    paths needs their per-question ranks and a score has already averaged them
+    setups needs their per-question ranks and a score has already averaged them
     away.
     """
-    measurements: dict[SearchPath, list[int | None]] = {}
-    for path in PATHS:
-        measurements[path] = measure(engine, questions, path=path)
-        print(f"  {path}: MRR {score(measurements[path]).mrr:.4f}")
+    measurements: dict[str, list[int | None]] = {}
+    for setup in SETUPS:
+        measurements[setup.label] = measure(
+            engine, questions, path=setup.path, rerank=setup.rerank
+        )
+        print(f"  {setup.label}: MRR {score(measurements[setup.label]).mrr:.4f}")
     return measurements
 
 
@@ -146,11 +163,13 @@ def main() -> int:
     finally:
         connection.close()
 
-    scores = [score_row(path, score(ranks)) for path, ranks in measurements.items()]
+    scores = [score_row(label, score(ranks)) for label, ranks in measurements.items()]
     differences = [
-        difference_row(path, compare(ranks, measurements[SIMPLEST_PATH]))
-        for path, ranks in measurements.items()
-        if path != SIMPLEST_PATH
+        difference_row(
+            setup, compare(measurements[setup.label], measurements[setup.against])
+        )
+        for setup in SETUPS
+        if setup.against is not None
     ]
 
     write_results(SCORE_COLUMNS, scores, SCORES_FILE)

@@ -24,10 +24,13 @@ if (Test-Path ".env") {
 
 uv sync
 
-# The ONNX embedding weights are about 90 MB, so they are downloaded rather than
-# committed. They belong here beside uv sync: both fetch a pinned dependency the
-# host needs before any code runs, and both keep what is already present.
+# The ONNX weights are a few hundred megabytes, so they are downloaded rather
+# than committed. They belong here beside uv sync: all of these fetch a pinned
+# dependency the host needs before any code runs, and all keep what is already
+# present. The encoder indexes and searches; the cross-encoder reorders what
+# search returns, and every answer goes through it.
 uv run python -m supernatural_expert.embedding
+uv run python -m supernatural_expert.reranking
 
 # This script prepares the host and stops there. Starting the database and
 # loading the corpus change state outside the clone, so they stay explicit.

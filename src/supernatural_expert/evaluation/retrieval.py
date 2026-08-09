@@ -6,8 +6,8 @@ arithmetic and nothing else: no model runs here, and the same questions over the
 same index reproduce a number rather than approximate it.
 
 Measuring and scoring are separate steps. Ranks are the expensive part and the
-metrics are pure arithmetic over them, so tuning can re-score a measurement it
-already has, and two setups can be compared question by question afterwards.
+metrics are pure arithmetic over them, so one measurement answers every question
+asked of it and two setups can be compared question by question afterwards.
 
 A score says how one setup did. `compare` says whether one setup beat another,
 which is a different question and the one every choice here rests on. See
@@ -102,6 +102,7 @@ def measure(
     path: SearchPath = "hybrid",
     limit: int = DEFAULT_LIMIT,
     candidates: int = DEFAULT_CANDIDATES,
+    rerank: bool = False,
 ) -> list[int | None]:
     """Search once per question and return where each answering document landed.
 
@@ -110,7 +111,13 @@ def measure(
     """
     return [
         rank_of(
-            engine.search(question.text, path=path, limit=limit, candidates=candidates),
+            engine.search(
+                question.text,
+                path=path,
+                limit=limit,
+                candidates=candidates,
+                rerank=rerank,
+            ),
             question.document_id,
         )
         for question in questions

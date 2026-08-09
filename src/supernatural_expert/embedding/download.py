@@ -1,8 +1,12 @@
-"""Fetch a pinned ONNX model into `models/`, ready for the encoder.
+"""Fetch a pinned ONNX model into `models/`, ready to run.
 
 Downloading is separate from encoding so the network is touched once, during
 setup, and never from application code. Repeating it is safe and cheap: files
 already present are left alone.
+
+Any pinned repository holding an ONNX graph and a tokenizer arrives this way, so
+the cross-encoder in `supernatural_expert.reranking` reuses it rather than
+carrying a second copy of the same fetch.
 
 `hf_hub_download` and `list_repo_files` are the only Hugging Face calls made
 here, and neither reports usage, so nothing has to be opted out of.
@@ -16,7 +20,7 @@ from huggingface_hub import (
     list_repo_files,
 )
 
-from supernatural_expert.embedding.models import DEFAULT_MODEL, EmbeddingModel
+from supernatural_expert.embedding.models import DEFAULT_MODEL, OnnxModel
 
 # Repositories disagree on where the graph sits, so the first match wins.
 ONNX_CANDIDATES = ("onnx/model.onnx", "onnx/encoder_model.onnx", "model.onnx")
@@ -26,7 +30,7 @@ class ModelDownloadError(RuntimeError):
     """Raised when a repository holds no ONNX graph we can use."""
 
 
-def download_model(model: EmbeddingModel = DEFAULT_MODEL) -> Path:
+def download_model(model: OnnxModel = DEFAULT_MODEL) -> Path:
     """Place `model.onnx` and `tokenizer.json` in the model's directory."""
     directory = model.directory
     directory.mkdir(parents=True, exist_ok=True)

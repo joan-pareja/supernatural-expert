@@ -12,8 +12,8 @@ import pytest
 
 from supernatural_expert.embedding.chunking import Chunker
 from supernatural_expert.embedding.encoder import (
-    EmbeddingModelNotDownloadedError,
     Encoder,
+    ModelNotDownloadedError,
     load_tokenizer,
 )
 from supernatural_expert.embedding.models import (
@@ -80,12 +80,12 @@ class TestEmbeddingModel:
 class TestMissingWeights:
     def test_the_encoder_names_the_command_that_fixes_it(self) -> None:
         with pytest.raises(
-            EmbeddingModelNotDownloadedError, match="python -m supernatural_expert"
+            ModelNotDownloadedError, match="python -m supernatural_expert"
         ):
             Encoder(ABSENT)
 
     def test_the_chunker_names_it_too(self) -> None:
-        with pytest.raises(EmbeddingModelNotDownloadedError):
+        with pytest.raises(ModelNotDownloadedError):
             Chunker(ABSENT)
 
 

@@ -41,6 +41,7 @@ class StubEngine:
     def __init__(self, results: list[SearchResult]) -> None:
         self.results = results
         self.calls: list[tuple[str, int, SearchFilters]] = []
+        self.reranked = False
 
     def search(
         self,
@@ -49,8 +50,10 @@ class StubEngine:
         limit: int = 10,
         filters: SearchFilters | None = None,
         candidates: int = 50,
+        rerank: bool = False,
     ) -> list[SearchResult]:
         self.calls.append((query, limit, filters or SearchFilters()))
+        self.reranked = rerank
         return self.results
 
 
@@ -85,6 +88,8 @@ def test_the_tool_searches_with_what_the_model_chose() -> None:
     query, limit, filters = engine.calls[0]
     assert (query, filters.season, filters.episode) == ("the Roadhouse", 2, None)
     assert limit == ANSWER_DOCUMENTS
+    # Reranking is the tool's to set, never the model's, so it is on every call.
+    assert engine.reranked
     assert run.output == Answer(text="It burns down.", citations=["s02e13"])
 
 
