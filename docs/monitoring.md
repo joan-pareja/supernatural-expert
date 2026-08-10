@@ -3,7 +3,7 @@ type: reference
 title: Monitoring
 description: Defines Logfire as the single telemetry and feedback source.
 status: approved
-modified: 2026-08-10T02:18:00+02:00
+modified: 2026-08-11T01:33:00+02:00
 tags:
 - monitoring
 - logfire
@@ -86,12 +86,14 @@ Errors or spoiler refusals may be a sixth view. The final README should include
 a dashboard screenshot so peer reviewers can see the evidence even without the
 project's private Logfire access.
 
-Where they are drawn is open. Logfire ships dashboards of its own, and several of
-these views are close to what it already offers over instrumented spans; a
-Streamlit reporting page reading the Query API would draw the same numbers at the
-cost of a read credential, a query client, and a second page. The choice waits
-until Logfire's own dashboards have been looked at against this list, because
-building the page first would settle it by default.
+They are drawn in Logfire. Every one of these views reads spans the app already
+sends, so a dashboard there is a view over data in place, where a Streamlit
+reporting page would cost a read credential, a query client, and a second page to
+show the same numbers. A chart Logfire does not offer ready-made is built as a
+custom chart inside Logfire rather than outside it.
+
+The chat therefore has no reporting page, and the project needs no read
+credential.
 
 ## Reviewer evidence
 
@@ -100,7 +102,7 @@ charts. It does not require access to the author's hosted monitoring account.
 The submitted repository will provide:
 
 - the feedback and telemetry code;
-- the five charts, as queries and rendering code or as a dashboard definition;
+- the five charts, as a Logfire dashboard definition;
 - screenshots of the populated dashboard;
 - steps for a reviewer to connect their own Logfire project and create fresh
   events.
@@ -108,8 +110,8 @@ The submitted repository will provide:
 This keeps the implementation inspectable without sharing private Logfire
 access or maintaining a second metrics store.
 
-The server needs write credentials for telemetry, and a read credential only if
-reporting ends up being drawn here. Neither belongs in the browser or repository.
+The server needs write credentials for telemetry and nothing else. They belong in
+neither the browser nor the repository.
 
 References: [Pydantic AI Logfire integration](https://pydantic.dev/docs/ai/integrations/logfire/),
 [Logfire dashboards](https://logfire.pydantic.dev/docs/guides/web-ui/dashboards/),

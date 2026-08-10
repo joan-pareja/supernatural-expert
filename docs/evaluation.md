@@ -3,7 +3,7 @@ type: reference
 title: Evaluation
 description: Defines the small offline and online checks used to choose the app defaults.
 status: approved
-modified: 2026-08-10T16:48:00+02:00
+modified: 2026-08-11T01:42:00+02:00
 tags:
 - evaluation
 - quality
@@ -47,18 +47,23 @@ is worth less than one that changes in the open.
 
 No model runs inside a retrieval measurement. Search, fusion, chunking, and
 reranking are all deterministic given the same questions and the same index, so
-a rerun reproduces a number rather than approximating it. This is part of why
-[Retrieval](retrieval.md) carries no query rewriting stage: a model in that path
-would spread variance across every comparison, including the ones it has nothing
-to do with.
+a rerun reproduces a number rather than approximating it. This is part of why no
+rewriting stage sits in front of search, as [Retrieval](retrieval.md) explains: a
+model in that path would spread variance across every comparison, including the
+ones it has nothing to do with. The agent rewrites its own queries, which is why
+that variance lands in answer evaluation rather than here.
 
 That holds for the pipeline and not for the deployed system, which is a boundary
-worth naming. A measurement searches the question verbatim. The agent does not:
-it decides what to search for and writes its own query, as [Agent](agent.md)
-describes, so the chat searches on a model's wording rather than the viewer's. A
-retrieval score is therefore what the paths reach on a well-put question, and an
-upper bound on what the chat retrieves rather than a reading of it. The gap
-between the two falls to answer evaluation, which runs the whole loop.
+worth naming. A measurement searches the question verbatim, once. The agent
+searches verbatim first and then rewrites, as [Agent](agent.md) describes, so a
+turn covers ground a single measured search does not. A retrieval score is
+therefore what the paths reach on one well-put question, and neither a ceiling
+nor a floor for what a whole turn retrieves. Answer evaluation runs the whole
+loop and is what reads that.
+
+The rewriting is what the gap was measured on: the agent's own phrasing reached
+the answering document about six points less often than the question as asked,
+which is why the first search now carries it unchanged.
 
 Reviewing 426 questions by hand is not realistic in this project. The document
 labels are checked across the whole set, which is quick and mechanical, while
@@ -92,14 +97,18 @@ less.
 
 ## Retrieval evaluation
 
-The same questions run through lexical, vector, and hybrid RRF search, and
-through hybrid with cross-encoder reranking over it, scored with hit rate at one
-and five and with MRR. `uv run python -m supernatural_expert.evaluation` runs all
-four over the tuning side and writes what each scored to
-`evaluation/results/retrieval_scores.csv` and how each compares against the
-simpler setup it must beat to `evaluation/results/retrieval_differences.csv`.
-That is lexical for the three paths, and the unreranked path for a reranked one:
-every extra is judged against what it was added to.
+The same questions run through lexical, vector, and hybrid RRF search, through
+hybrid with cross-encoder reranking over it, and through the same with a deeper
+cross-encoder, scored with hit rate at one and five and with MRR.
+`uv run python -m supernatural_expert.evaluation` runs all five over the tuning
+side and writes what each scored to `evaluation/results/retrieval_scores.csv` and
+how each compares against the simpler setup it must beat to
+`evaluation/results/retrieval_differences.csv`. That is lexical for the three
+paths, the unreranked path for a reranked one, and the smaller cross-encoder for
+the larger: every extra is judged against what it was added to.
+
+`--held-out` scores the adopted setup alone over the questions no comparison saw,
+writing `evaluation/results/retrieval_held_out.csv`.
 
 Measuring and scoring are separate. A measurement is the rank the answering
 document reached for each question, a document absent from the results counting
@@ -108,10 +117,10 @@ so two setups can be compared question by question once the searching is done.
 
 The metric that counts is whichever still separates good setups from bad ones.
 The corpus holds 132 documents, so hit rate at five was expected to sit near a
-perfect score and stop being useful. It does not: the best setup reaches 0.936,
-leaving a sixteenth of the questions with their document nowhere in the results,
-so all three measures remain live. MRR is the one a comparison is decided on,
-because ordering is what a second stage can still move once recall is settled.
+perfect score and stop being useful. It does not: the best setup reaches 0.910,
+leaving a question in eleven with its document nowhere in the results, so all
+three measures remain live. MRR is the one a comparison is decided on, because
+ordering is what a second stage can still move once recall is settled.
 
 Retrieval scoring costs nothing but search time and arithmetic, so it runs over
 every question on the side being read.

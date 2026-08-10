@@ -1,4 +1,5 @@
 "setup","against","mean","low","high","tie","better","worse","tied"
-"vector","lexical","-0.1298","-0.1735","-0.0837","decided","59","110","174"
-"hybrid","lexical","0.0136","-0.0215","0.0521","tie","72","44","227"
-"hybrid+rerank","hybrid","0.0736","0.0430","0.1031","decided","63","21","259"
+"vector","lexical","-0.0498","-0.0939","-0.0028","decided","75","104","164"
+"hybrid","lexical","0.0698","0.0355","0.1031","decided","98","49","196"
+"hybrid+rerank","hybrid","0.0946","0.0641","0.1287","decided","82","29","232"
+"hybrid+rerank-L12","hybrid+rerank","0.0350","0.0197","0.0518","decided","33","11","299"

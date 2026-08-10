@@ -4,8 +4,9 @@ Run it from the repository root, after the index is built:
 
     uv run python -m supernatural_expert.evaluation
 
-Only the tuning side is read. The held-out side stays unread until a setup has
-been chosen, which is the whole point of having split it.
+Only the tuning side is read. Once a setup has been chosen from those results,
+`--held-out` scores that one setup over the questions no comparison has seen,
+which is the whole point of having split it.
 
 This is the run every retrieval decision rests on: which path ships, and whether
 a stage added over it earns what it costs.
@@ -16,6 +17,7 @@ actually asks. See docs/evaluation.md.
 """
 
 import csv
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -38,7 +40,7 @@ from supernatural_expert.evaluation.retrieval import (
     score,
 )
 from supernatural_expert.reranking.models import (
-    DEFAULT_RERANKER,
+    MS_MARCO_MINILM_L6_V2,
     MS_MARCO_MINILM_L12_V2,
     RerankerModel,
 )
@@ -61,9 +63,13 @@ class Setup:
     path: SearchPath
     rerank: bool = False
     against: str | None = "lexical"
-    reranker: RerankerModel = DEFAULT_RERANKER
+    reranker: RerankerModel = MS_MARCO_MINILM_L6_V2
 
 
+# Each cross-encoder is named here rather than taken from DEFAULT_RERANKER, so
+# adopting a winner changes what the app ships without changing what this
+# measured. A comparison that moved with the default could not be reproduced
+# after it had decided anything.
 SETUPS = (
     Setup("lexical", "lexical", against=None),
     Setup("vector", "vector"),
@@ -81,8 +87,12 @@ SETUPS = (
     ),
 )
 
+# The setup the tuning side chose, and the only one the held-out side ever sees.
+ADOPTED = "hybrid+rerank-L12"
+
 SCORES_FILE = RESULTS_DIR / "retrieval_scores.csv"
 DIFFERENCES_FILE = RESULTS_DIR / "retrieval_differences.csv"
+HELD_OUT_FILE = RESULTS_DIR / "retrieval_held_out.csv"
 
 SCORE_COLUMNS = (
     ["setup", "questions"]
@@ -180,10 +190,43 @@ def run(connection: Any, questions: list[Question]) -> dict[str, list[int | None
     return measurements
 
 
+def confirm(connection: Any, questions: list[Question]) -> int:
+    """Score the adopted setup on the held-out side, and nothing else.
+
+    One setup, once. Running the runner-up here too would turn these questions
+    into a second tuning set, and the choice would have nothing left to be
+    checked against. This answers whether the winner holds up, never which
+    should have won.
+    """
+    setup = next(item for item in SETUPS if item.label == ADOPTED)
+    ranks = measure(
+        SearchEngine(connection, reranker=Reranker(setup.reranker)),
+        questions,
+        path=setup.path,
+        rerank=setup.rerank,
+    )
+    row = score_row(setup.label, score(ranks))
+    write_results(SCORE_COLUMNS, [row], HELD_OUT_FILE)
+    print()
+    print(render(SCORE_COLUMNS, [row]))
+    print()
+    print(f"Wrote {HELD_OUT_FILE}.")
+    return 0
+
+
 def main() -> int:
     settings = load_settings()
     questions = load_questions()
     tuning, held_out = split(questions, load_held_out())
+
+    if "--held-out" in sys.argv[1:]:
+        print(f"Reading {len(held_out)} held-out questions with {ADOPTED}.")
+        connection = connect(settings)
+        try:
+            return confirm(connection, held_out)
+        finally:
+            connection.close()
+
     print(
         f"Scoring {len(tuning)} tuning questions. "
         f"{len(held_out)} held-out questions are not read here."

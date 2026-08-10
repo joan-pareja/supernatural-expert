@@ -3,7 +3,7 @@ type: reference
 title: Retrieval
 description: Defines the search baseline and evaluation-driven choices.
 status: approved
-modified: 2026-08-09T22:19:00+02:00
+modified: 2026-08-11T01:33:00+02:00
 tags:
 - retrieval
 - hybrid-search
@@ -26,15 +26,18 @@ related:
 - Vector search uses local ONNX embeddings stored with pgvector.
 - Hybrid search combines both ranked lists with reciprocal rank fusion (RRF).
 
-Hybrid ships, though it only ties lexical on the ground truth. Those questions
-each name a rare guest character, town, or object, because
-[Evaluation](evaluation.md) has to anchor them for a label to mean anything, and
-rarity is exactly what BM25 ranks best. Questions asked in use are not all that
-shape: one about how a season ends, or what a recurring idea amounts to, offers no
-rare term to seize on, and that is where the vector path is expected to carry the
-result. Keeping hybrid is a forecast rather than a measured win, taken knowingly
-against the tie rule that would otherwise keep the simpler path, and it stands
-until questions from real use say otherwise.
+Hybrid ships, and it is measured rather than forecast. It beats lexical by 0.070
+MRR with the paired interval clear of zero, while vector alone loses to lexical
+by 0.050: the two paths find different documents, and fusing them beats either.
+
+It was not always so clear. On the first question set, every question named a
+rare guest character, town, or object, because [Evaluation](evaluation.md) has to
+anchor them for a label to mean anything, and rarity is exactly what BM25 ranks
+best. Hybrid tied lexical there and shipped anyway, as a forecast about questions
+asked in use. Rewriting those questions to the way viewers actually ask, with at
+least one per document naming nothing at all, cost lexical 0.14 MRR and vector
+0.05 and turned the tie into a decided win. The forecast was right, and the
+earlier lean was the anchoring rather than the ranking.
 
 All paths filter to seasons 1 through 6 and return source metadata for citations.
 The agent reaches them through one typed search tool; [Agent](agent.md) owns what
@@ -151,44 +154,55 @@ document the first stage drops is gone for good. Ordering is also the part of
 the score this corpus can still move, since hit rate saturates at 132 documents
 while MRR keeps responding.
 
-`ms-marco-MiniLM-L-6-v2` is the reranker, in ONNX on the same CPU as the encoder
-and about the same size, 91 MB against 128 MB. It is trained on real search
-queries paired with passages marked relevant or not, a narrower skill than the
-sentence similarity an embedding model learns, and it returns a single relevance
-score rather than a vector, so nothing about it reaches pgvector. Those scores
-order candidates within one query and mean nothing across queries.
+`ms-marco-MiniLM-L-12-v2` is the reranker, in ONNX on the same CPU as the
+encoder. It is trained on real search queries paired with passages marked
+relevant or not, a narrower skill than the sentence similarity an embedding model
+learns, and it returns a single relevance score rather than a vector, so nothing
+about it reaches pgvector. Those scores order candidates within one query and
+mean nothing across queries.
+
+It replaces the six-layer model of the same family, which shares its training
+data and its width and differs only in depth. The smaller one was demoting
+correct documents that fusion had already ranked first, on questions phrased the
+way viewers ask rather than the way MS MARCO queries are written. Doubling the
+depth answers that: MRR 0.818 to 0.853, hit rate at one 0.758 to 0.816, paired
+interval clear of zero. Public benchmarks already ranked the two in this order,
+so the result is a confirmation rather than a discovery; what it demonstrated is
+the split and the intervals working end to end on a live decision.
 
 BAAI's own `bge-reranker-base` would match the encoder's family but is built on
 multilingual XLM-RoBERTa and ships 1.1 GB of weights for languages this corpus
 does not contain. English, CPU-sized, and ONNX-published are the properties that
 matter here; a shared family name is not one of them.
 
-Reranking is adopted on one comparison against the hybrid baseline, and it wins
-it: MRR moves from 0.808 to 0.881 and hit rate at one from 0.738 to 0.840, with
-the paired interval clear of zero. It is the largest effect measured on this
-corpus and the only extra that is not close. Every answer therefore goes through
-it, switched on where the agent's tool calls search rather than chosen by the
-model, for the reason the spoiler boundary is not an argument either.
+Reranking itself is adopted on its own comparison against the hybrid baseline,
+which it wins by 0.095 MRR. It is the largest effect measured on this corpus and
+the only extra that is not close. Every answer therefore goes through it,
+switched on where the agent's tool calls search rather than chosen by the model,
+for the reason the spoiler boundary is not an argument either.
 
-It costs about 1.6 seconds a query, against 0.2 for hybrid alone, which is
-affordable beside the model call that follows it. The shortlist is twenty units,
-and halving it is the lever if that ever stops being true.
+Reranking is the slowest part of a search, and the deeper model is slower again.
+That is affordable beside the model call which follows it, and the shortlist of
+twenty units is the lever if it ever stops being.
 
-## Why there is no query rewriting
+## Where query rewriting happens
 
-A rewriting stage would put a model between the user and search to resolve what
-a follow-up refers to before anything is retrieved. It is a recognised technique
-and the rubric offers a point for it. This project does without one.
+The agent writes the query. It receives the conversation and composes the words
+it passes to the search tool, so a question referring back to an earlier turn is
+resolved inside a call that was happening regardless, and a viewer's loose
+description is turned into the series' own terms. That is query rewriting, done
+by the loop rather than by a stage in front of it.
 
-It costs three things for that point. It adds a component and a frozen artifact
-to maintain. It spends a model call on every turn, whether or not the question
-needed one. And it places a non-deterministic step beside measurements whose
-whole value is that a later run can be compared with an earlier one; the
-rewriting would have to be frozen to keep them comparable, at which point the
-evaluation no longer tests the rewriter that ships.
+No separate rewriting component sits between the user and search. One would add a
+component and a frozen artifact to maintain, spend a model call on every turn
+whether or not the question needed one, and place a second non-deterministic step
+beside measurements whose value is that a later run compares to an earlier one.
 
-Follow-ups are not left broken. The agent already receives the conversation and
-chooses the argument it passes to the search tool, so a question referring back
-to an earlier turn is resolved inside a call that was happening regardless. That
-is a property of the agent loop rather than a retrieval stage, which is why
-nothing here measures it and nothing claims a point for it.
+What the rewriting costs is measured rather than assumed. Over the same
+questions, the agent's own queries reach the answering document about six points
+less often than the question searched verbatim, because a paraphrase discards the
+names the documents match on. The instructions therefore send the question
+unchanged on the first search and let the model rewrite on any search after it,
+which keeps what rewriting is good at without paying for it on the one search
+that needed no help. [Agent](agent.md) owns those instructions and
+[Evaluation](evaluation.md) owns the comparison.

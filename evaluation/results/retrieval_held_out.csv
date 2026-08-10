@@ -1,0 +1,2 @@
+"setup","questions","hit_rate_1","hit_rate_5","mrr","mrr_low","mrr_high"
+"hybrid+rerank-L12","83","0.7711","0.9639","0.8545","0.7926","0.9110"

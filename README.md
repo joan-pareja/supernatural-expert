@@ -33,13 +33,15 @@ runtime design. See [Corpus](docs/corpus.md), [Ingestion](docs/ingestion.md), an
 
 The plan covers all nine two-point project sections: problem, retrieval, two
 forms of evaluation, interface, ingestion, monitoring, containerization, and
-reproducibility. Hybrid search and a cross-encoder reranker are both measured
-against the ground truth and both kept, which takes the two best-practice points
-the project pursues. Query rewriting and cloud deployment are both declined, for
-reasons the linked documents give.
+reproducibility. Hybrid search, a cross-encoder reranker, and the agent's own
+query rewriting are each measured against the ground truth and kept, which takes
+three best-practice points. Cloud deployment is declined, for reasons the linked
+documents give.
 
-The exact checklist and evidence locations live in [Rubric](docs/rubric.md). It
-tracks the official [LLM Zoomcamp project rubric](https://github.com/DataTalksClub/llm-zoomcamp/blob/main/project.md).
+**Start with [Journey](JOURNEY.md)** for what was built, what it was measured
+against, and what each decision was worth. The exact checklist and evidence
+locations live in [Rubric](docs/rubric.md), which tracks the official
+[LLM Zoomcamp project rubric](https://github.com/DataTalksClub/llm-zoomcamp/blob/main/project.md).
 
 ## Running the project
 
@@ -96,6 +98,7 @@ show the dashboard code, its queries, and screenshots with at least five charts.
 
 ## Documentation map
 
+- [Journey](JOURNEY.md): how the project got here, and what each turn was worth.
 - [Scope](docs/scope.md): the problem and the boundary of the first release.
 - [Corpus](docs/corpus.md): what the knowledge base contains.
 - [Ingestion](docs/ingestion.md): how Wikipedia becomes corpus documents.

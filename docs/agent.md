@@ -3,7 +3,7 @@ type: reference
 title: Agent
 description: Defines the answering loop, its search tool, and what an answer may claim.
 status: approved
-modified: 2026-08-09T23:45:00+02:00
+modified: 2026-08-11T01:07:00+02:00
 tags:
 - agent
 - pydantic-ai
@@ -26,11 +26,18 @@ whether to search and with what wording, reads what comes back, and searches
 again when the results do not settle the question. Nothing in the application
 schedules those calls or caps them by hand.
 
-What the model is told about that wording is the one lever over it. A viewer
-describes things loosely and the documents carry the show's own names, so the
-instructions ask for a query written in the series' vocabulary rather than the
-question's. Neither search path can bridge that gap on its own: a rephrasing is
-not a synonym either ranking can see.
+What the model is told about that wording is the one lever over it, and the
+instructions split it in two. The first search carries the question word for
+word, because the viewer's own phrasing holds names and details that match the
+documents directly and a rewrite drops them before search runs. Later searches
+rewrite freely into the series' vocabulary, which is what reaches an episode a
+viewer described loosely; neither search path can bridge that gap alone, since a
+rephrasing is not a synonym either ranking can see.
+
+Measurement is what settled the order. The agent's own queries reach the
+answering document less often than the question searched verbatim, by about six
+points over the same questions, so the rewrite is worth having second and costly
+first. [Evaluation](evaluation.md) owns that comparison.
 
 The loop is synchronous. PostgreSQL access and ONNX inference both block, so an
 asynchronous agent would wait on the same work through more machinery, and the

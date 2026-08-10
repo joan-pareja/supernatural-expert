@@ -69,4 +69,6 @@ MS_MARCO_MINILM_L12_V2 = RerankerModel(
 # compares rather than only what the app ships.
 RERANKERS = (MS_MARCO_MINILM_L6_V2, MS_MARCO_MINILM_L12_V2)
 
-DEFAULT_RERANKER = MS_MARCO_MINILM_L6_V2
+# The deeper model, adopted on the measured difference in docs/evaluation.md
+# rather than on being larger.
+DEFAULT_RERANKER = MS_MARCO_MINILM_L12_V2
