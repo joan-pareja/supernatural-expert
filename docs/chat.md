@@ -3,7 +3,7 @@ type: reference
 title: Chat
 description: Defines the Streamlit page, what it keeps between reruns, and how it looks.
 status: approved
-modified: 2026-08-09T15:16:00+02:00
+modified: 2026-08-10T02:18:00+02:00
 tags:
 - streamlit
 - chat
@@ -22,9 +22,14 @@ related:
 ## The page
 
 One page, `src/supernatural_expert/chat/app.py`, run with `uv run streamlit run
-src/supernatural_expert/chat/app.py`. It asks questions and shows answers with
-their sources, and does nothing else. Feedback controls and reporting arrive with
-[Monitoring](monitoring.md) and have no placeholder here.
+src/supernatural_expert/chat/app.py`. It asks questions, shows answers with their
+sources, and takes a thumb on each one. Reporting is not here, and where it lands
+is [Monitoring](monitoring.md)'s to settle.
+
+The thumbs are Streamlit's own `st.feedback` widget rather than a pair of
+buttons, so the page ships no icons and no state of its own for them: the widget
+remembers which thumb was pressed, and the click is sent once, on the rerun that
+changed it. Where it is sent is [Monitoring](monitoring.md)'s.
 
 Streamlit reruns the whole file on every interaction. The page is therefore drawn
 from state rather than mutated: the conversation is a list in `st.session_state`,

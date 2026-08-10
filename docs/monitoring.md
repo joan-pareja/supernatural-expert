@@ -3,7 +3,7 @@ type: reference
 title: Monitoring
 description: Defines Logfire as the single telemetry and feedback source.
 status: approved
-modified: 2026-08-10T01:52:00+02:00
+modified: 2026-08-10T02:18:00+02:00
 tags:
 - monitoring
 - logfire
@@ -20,9 +20,8 @@ related:
 > metrics store.
 
 Pydantic Logfire is the one source for traces, usage, errors, judge results, and
-user feedback. Pydantic AI instrumentation covers agent and model calls. Small
-custom spans cover retrieval and other app work that automatic instrumentation
-cannot explain.
+user feedback. Pydantic AI instrumentation covers agent and model calls, and
+attributes on the spans it already opens cover what it cannot explain by itself.
 
 `supernatural_expert.monitoring.telemetry` configures Logfire and instruments the
 agent. Configuring is process-wide, so it happens at an entry point and nowhere
@@ -38,11 +37,22 @@ What instrumentation cannot know is how the search was run and how it ended up
 ranked. `search_episodes` therefore adds `search.path`, `search.rerank`, and
 `search.documents` to the span already covering it. The last of those lifts the
 ranked identifiers out of the returned documents, so a query across traces reads
-an array instead of parsing five episode plots. The project opens no spans of its
-own.
+an array instead of parsing five episode plots. The chat turn below is the one
+span the project opens, and it exists for feedback rather than for telemetry.
 
-Thumbs-up and thumbs-down actions are structured Logfire events tied to the run
-and answer. PostgreSQL must not keep a duplicate feedback or monitoring copy.
+## Feedback
+
+The chat draws a thumb under every answer and sends the click through
+`logfire.experimental.annotations.record_feedback`, which writes an annotation
+under the turn it judges rather than a log line beside it. Logfire recognises the
+`logfire.feedback.name` attribute it carries, so a judged run is queryable and
+readable as one thing. PostgreSQL must not keep a duplicate feedback copy.
+
+Reaching that turn is the whole difficulty. A thumb is clicked on a later
+Streamlit rerun, when every span the answer opened has closed and none is
+reachable, so the chat opens one span per turn and keeps its traceparent beside
+the message. That span is also the turn as the viewer experiences it, which the
+agent run inside it is not.
 
 ## What is sent
 
@@ -64,8 +74,7 @@ monitoring views and nothing else.
 
 ## Reporting
 
-The Streamlit reporting page reads Logfire through its Query API and shows at
-least these five charts:
+Five charts are required, whoever draws them:
 
 1. Requests over time.
 2. Positive and negative feedback.
@@ -77,6 +86,13 @@ Errors or spoiler refusals may be a sixth view. The final README should include
 a dashboard screenshot so peer reviewers can see the evidence even without the
 project's private Logfire access.
 
+Where they are drawn is open. Logfire ships dashboards of its own, and several of
+these views are close to what it already offers over instrumented spans; a
+Streamlit reporting page reading the Query API would draw the same numbers at the
+cost of a read credential, a query client, and a second page. The choice waits
+until Logfire's own dashboards have been looked at against this list, because
+building the page first would settle it by default.
+
 ## Reviewer evidence
 
 The rubric requires collected feedback and a dashboard with at least five
@@ -84,7 +100,7 @@ charts. It does not require access to the author's hosted monitoring account.
 The submitted repository will provide:
 
 - the feedback and telemetry code;
-- the five chart queries and rendering code;
+- the five charts, as queries and rendering code or as a dashboard definition;
 - screenshots of the populated dashboard;
 - steps for a reviewer to connect their own Logfire project and create fresh
   events.
@@ -92,8 +108,8 @@ The submitted repository will provide:
 This keeps the implementation inspectable without sharing private Logfire
 access or maintaining a second metrics store.
 
-The server needs write credentials for telemetry and a read token for reporting.
-Neither belongs in the browser or repository.
+The server needs write credentials for telemetry, and a read credential only if
+reporting ends up being drawn here. Neither belongs in the browser or repository.
 
 References: [Pydantic AI Logfire integration](https://pydantic.dev/docs/ai/integrations/logfire/),
 [Logfire dashboards](https://logfire.pydantic.dev/docs/guides/web-ui/dashboards/),

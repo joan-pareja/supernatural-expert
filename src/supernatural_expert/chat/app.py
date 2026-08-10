@@ -13,7 +13,9 @@ from dataclasses import dataclass
 from threading import Lock
 from typing import cast
 
+import logfire
 import streamlit as st
+from logfire.experimental.annotations import get_traceparent, record_feedback
 from pydantic_ai.models.openai import OpenAIResponsesModel
 
 from supernatural_expert.agent.answering import (
@@ -39,14 +41,24 @@ Ask anything from the first six seasons, such as:
 - What is the Colt and who made it?
 """
 
+# What st.feedback returns for the up thumb; the down thumb is 0.
+THUMBS_UP = 1
+FEEDBACK_NAME = "thumbs_up"
+
 
 @dataclass(frozen=True, slots=True)
 class Exchange:
-    """One question and its answer, kept so a rerun can redraw the conversation."""
+    """One question and its answer, kept so a rerun can redraw the conversation.
+
+    `traceparent` is what lets a thumb clicked minutes later reach the turn it
+    judges. Feedback is sent from a rerun of its own, long after the run's spans
+    have closed, so the trace has to be remembered rather than rediscovered.
+    """
 
     question: str
     answer: str
     sources: list[RetrievedDocument]
+    traceparent: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -86,6 +98,17 @@ def exchanges() -> list[Exchange]:
     return cast(list[Exchange], st.session_state.setdefault("exchanges", []))
 
 
+def remember(traceparent: str) -> None:
+    """Attach the thumb to its turn in Logfire.
+
+    Streamlit calls this only when the widget changes, so a thumb is sent once
+    rather than on every rerun that redraws it. The traceparent is also the
+    widget key, which is what makes the reading possible here.
+    """
+    thumb = st.session_state[traceparent]
+    record_feedback(traceparent, FEEDBACK_NAME, thumb == THUMBS_UP)
+
+
 def render(exchange: Exchange) -> None:
     with st.chat_message("user"):
         st.markdown(exchange.question)
@@ -98,6 +121,14 @@ def render(exchange: Exchange) -> None:
                         f"[{document.title}]({document.source_url}) "
                         f"— `{document.document_id}`"
                     )
+        # Keyed by the traceparent because it identifies the turn and is unique
+        # per answer, so every drawn exchange keeps its own thumb across reruns.
+        st.feedback(
+            "thumbs",
+            key=exchange.traceparent,
+            on_change=remember,
+            args=(exchange.traceparent,),
+        )
 
 
 def answer(expert: Expert, question: str) -> Exchange:
@@ -106,15 +137,23 @@ def answer(expert: Expert, question: str) -> Exchange:
     The dependencies are built fresh so this run's citations are checked against
     this run's own search results. The message history is not: it carries the
     earlier turns, which is what lets a follow-up say "that episode".
+
+    The span is the one place the project opens one, and it is here because a
+    thumb needs something to attach to: instrumentation's own spans are closed by
+    the time the buttons are drawn, and none of them is reachable afterwards. It
+    is also the turn as the viewer experiences it, waiting for the lock included,
+    which the agent run inside it is not.
     """
     deps = AnswerDeps(engine=expert.engine)
-    with expert.lock:
-        result = ask(
-            question,
-            deps,
-            expert.model,
-            message_history=st.session_state.get("history"),
-        )
+    with logfire.span("chat turn") as turn:
+        traceparent = get_traceparent(turn)
+        with expert.lock:
+            result = ask(
+                question,
+                deps,
+                expert.model,
+                message_history=st.session_state.get("history"),
+            )
     st.session_state["history"] = result.all_messages()
     return Exchange(
         question=question,
@@ -122,6 +161,7 @@ def answer(expert: Expert, question: str) -> Exchange:
         sources=[
             deps.retrieved[document_id] for document_id in result.output.citations
         ],
+        traceparent=traceparent,
     )
 
 
