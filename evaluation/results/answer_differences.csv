@@ -1,0 +1,4 @@
+"measure","mean","low","high","verdict","better","worse","tied"
+"relevant","0.000","-0.057","0.071","tie","3","3","64"
+"supported","-0.014","-0.100","0.071","tie","5","6","59"
+"retrieved","0.043","-0.014","0.114","tie","4","1","65"

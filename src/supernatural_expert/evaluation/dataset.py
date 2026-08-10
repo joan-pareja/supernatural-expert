@@ -22,6 +22,7 @@ from supernatural_expert.config import REPOSITORY_ROOT
 EVALUATION_DIR = REPOSITORY_ROOT / "evaluation"
 GROUND_TRUTH_FILE = EVALUATION_DIR / "ground_truth.csv"
 HELD_OUT_FILE = EVALUATION_DIR / "held_out.csv"
+ANSWER_SUBSET_FILE = EVALUATION_DIR / "answer_subset.csv"
 RESULTS_DIR = EVALUATION_DIR / "results"
 
 # A fifth of the documents. Large enough that the held-out score is not decided
@@ -31,6 +32,12 @@ HELD_OUT_FRACTION = 0.2
 # Fixed so the split is reproducible from the questions alone, and the committed
 # file can be checked rather than trusted.
 HELD_OUT_SEED = 2026
+
+# Questions each answer setup is judged over. Answer evaluation costs an answer
+# and two judge calls per question per setup, so it reads a subset where
+# retrieval scoring reads everything.
+ANSWER_SUBSET_SIZE = 70
+ANSWER_SUBSET_SEED = 2027
 
 
 class GroundTruthError(RuntimeError):
@@ -88,6 +95,58 @@ def choose_held_out(
     return sorted(chosen)
 
 
+def choose_answer_subset(
+    tuning: list[Question],
+    size: int = ANSWER_SUBSET_SIZE,
+    seed: int = ANSWER_SUBSET_SEED,
+) -> list[Question]:
+    """Pick the questions answer setups are compared over.
+
+    Drawn from the tuning side alone, so the held-out documents stay unread until
+    the single final pass, and stratified by document kind for the reason the
+    held-out split is: six season introductions are easy to miss entirely.
+
+    Questions rather than documents. Two answer setups differ in how much context
+    one answer is written from, and nothing carries between questions, so a
+    document appearing twice cannot leak the way it would in a retrieval split.
+    """
+    if size > len(tuning):
+        raise GroundTruthError(
+            f"Asked for {size} questions, but the tuning side holds {len(tuning)}."
+        )
+    kinds = (
+        [q for q in tuning if is_season_introduction(q.document_id)],
+        [q for q in tuning if not is_season_introduction(q.document_id)],
+    )
+    generator = Random(seed)
+    chosen: list[Question] = []
+    for kind in kinds:
+        chosen.extend(generator.sample(kind, round(size * len(kind) / len(tuning))))
+    return sorted(chosen, key=lambda question: (question.document_id, question.text))
+
+
+def write_answer_subset(
+    questions: list[Question], path: Path = ANSWER_SUBSET_FILE
+) -> None:
+    """Write the judged subset in the shape the ground truth already uses."""
+    with path.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.writer(handle, quoting=csv.QUOTE_ALL)
+        writer.writerow(["document_id", "question"])
+        writer.writerows(
+            [question.document_id, question.text] for question in questions
+        )
+
+
+def load_answer_subset(path: Path = ANSWER_SUBSET_FILE) -> list[Question]:
+    """Read the committed subset, so both setups answer the same questions."""
+    if not path.is_file():
+        raise GroundTruthError(
+            f"{path} does not exist. "
+            "Run: uv run python -m supernatural_expert.evaluation.dataset"
+        )
+    return load_questions(path)
+
+
 def write_held_out(document_ids: list[str], path: Path = HELD_OUT_FILE) -> None:
     """Write the held-out documents, one per line under a header."""
     with path.open("w", encoding="utf-8", newline="") as handle:
@@ -121,12 +180,15 @@ def main() -> int:
     held_out_ids = choose_held_out(questions)
     write_held_out(held_out_ids, HELD_OUT_FILE)
     tuning, held_out = split(questions, set(held_out_ids))
+    subset = choose_answer_subset(tuning)
+    write_answer_subset(subset, ANSWER_SUBSET_FILE)
     print(
         f"Held out {len(held_out_ids)} of "
         f"{len({q.document_id for q in questions})} documents "
         f"({len(held_out)} questions), leaving {len(tuning)} for tuning."
     )
     print(f"Wrote {HELD_OUT_FILE}.")
+    print(f"Wrote {ANSWER_SUBSET_FILE} with {len(subset)} judged questions.")
     return 0
 
 

@@ -178,13 +178,13 @@ def score(
     )
 
 
-def compare(
-    candidate: Sequence[int | None],
-    baseline: Sequence[int | None],
+def compare_values(
+    candidate: Sequence[float],
+    baseline: Sequence[float],
     samples: int = BOOTSTRAP_SAMPLES,
     seed: int = BOOTSTRAP_SEED,
 ) -> Difference:
-    """Say whether `candidate` beat `baseline`, from two measurements of one set.
+    """Say whether `candidate` beat `baseline`, one per-question value each.
 
     Both setups answered the same questions in the same order, so each question
     yields a pair and the comparison is over the differences between them. That
@@ -194,6 +194,9 @@ def compare(
 
     Two separate intervals can therefore overlap while the difference between the
     setups is real, which is why an overlap is not evidence of a tie and this is.
+
+    The values are anything averaged per question: reciprocal ranks here, and a
+    judge's verdicts in answer evaluation. The arithmetic does not care which.
     """
     if not candidate:
         raise ValueError("Comparing needs at least one question.")
@@ -202,14 +205,26 @@ def compare(
             f"Comparing needs one measurement per question on both sides, "
             f"got {len(candidate)} and {len(baseline)}."
         )
-    differences = [
-        theirs - ours
-        for theirs, ours in zip(reciprocal_ranks(candidate), reciprocal_ranks(baseline))
-    ]
+    differences = [theirs - ours for theirs, ours in zip(candidate, baseline)]
     return Difference(
         mean=mean(differences),
         interval=interval(differences, samples=samples, seed=seed),
         better=sum(1 for value in differences if value > 0),
         worse=sum(1 for value in differences if value < 0),
         tied=sum(1 for value in differences if value == 0),
+    )
+
+
+def compare(
+    candidate: Sequence[int | None],
+    baseline: Sequence[int | None],
+    samples: int = BOOTSTRAP_SAMPLES,
+    seed: int = BOOTSTRAP_SEED,
+) -> Difference:
+    """Say whether `candidate` ranked better than `baseline`, over one question set."""
+    return compare_values(
+        reciprocal_ranks(candidate),
+        reciprocal_ranks(baseline),
+        samples=samples,
+        seed=seed,
     )

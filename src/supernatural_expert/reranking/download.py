@@ -5,12 +5,13 @@ not care what a graph computes. Only the model being asked for differs.
 """
 
 from supernatural_expert.embedding.download import download_model
-from supernatural_expert.reranking.models import DEFAULT_RERANKER
+from supernatural_expert.reranking.models import RERANKERS
 
 
 def main() -> int:
-    model = DEFAULT_RERANKER
-    print(f"{model.repository} at {model.revision[:7]}")
-    directory = download_model(model)
-    print(f"Ready. {model.max_tokens} tokens across query and passage, {directory}")
+    """Fetch every reranker, because evaluation compares more than the app ships."""
+    for model in RERANKERS:
+        print(f"{model.repository} at {model.revision[:7]}")
+        directory = download_model(model)
+        print(f"Ready. {model.max_tokens} tokens across query and passage, {directory}")
     return 0

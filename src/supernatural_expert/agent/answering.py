@@ -42,9 +42,9 @@ RERANK_ANSWERS = True
 # this is a context budget as much as a recall setting: past a handful, the
 # answer is written from more text than any question needs.
 #
-# A constant, because it does not vary by question. Varying it inside one process,
-# to compare two counts without standing up a second agent, means moving it onto
-# AnswerDeps and letting each run carry its own.
+# The default rather than the setting. It sits on AnswerDeps so answer evaluation
+# can run two counts against each other in one process, which is the comparison
+# docs/evaluation.md settles this number on.
 ANSWER_DOCUMENTS = 5
 
 INSTRUCTIONS = """
@@ -122,9 +122,10 @@ class Answer:
 class AnswerDeps:
     """What one run searches with, and what that run found.
 
-    Both fields have to arrive per run rather than be settled here: the engine
-    holds a connection that does not exist until the process starts, and
-    `retrieved` is this run's own record.
+    The engine and `retrieved` have to arrive per run rather than be settled
+    here: the engine holds a connection that does not exist until the process
+    starts, and `retrieved` is this run's own record. `documents` defaults to the
+    adopted count and is overridden only by the evaluation that compares counts.
 
     `retrieved` accumulates every document the tool returned, which is what makes
     a citation checkable and what turns a document_id back into a link. Build a
@@ -133,6 +134,7 @@ class AnswerDeps:
     """
 
     engine: SearchEngine
+    documents: int = ANSWER_DOCUMENTS
     # The factory is parameterised so the empty dictionary has the field's type.
     retrieved: dict[str, RetrievedDocument] = field(
         default_factory=dict[str, RetrievedDocument]
@@ -167,7 +169,7 @@ def search_episodes(
     results = ctx.deps.engine.search(
         query,
         path=SEARCH_PATH,
-        limit=ANSWER_DOCUMENTS,
+        limit=ctx.deps.documents,
         filters=SearchFilters(season=season, episode=episode),
         rerank=RERANK_ANSWERS,
     )
@@ -184,6 +186,7 @@ def search_episodes(
     span = trace.get_current_span()
     span.set_attribute("search.path", SEARCH_PATH)
     span.set_attribute("search.rerank", RERANK_ANSWERS)
+    span.set_attribute("search.limit", ctx.deps.documents)
     span.set_attribute("search.documents", [result.document_id for result in results])
     documents = [
         RetrievedDocument(

@@ -18,8 +18,10 @@ actually asks. See docs/evaluation.md.
 import csv
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from supernatural_expert.config import load_settings
+from supernatural_expert.embedding.encoder import Encoder
 from supernatural_expert.evaluation.dataset import (
     RESULTS_DIR,
     Question,
@@ -35,6 +37,12 @@ from supernatural_expert.evaluation.retrieval import (
     measure,
     score,
 )
+from supernatural_expert.reranking.models import (
+    DEFAULT_RERANKER,
+    MS_MARCO_MINILM_L12_V2,
+    RerankerModel,
+)
+from supernatural_expert.reranking.reranker import Reranker
 from supernatural_expert.search.engine import SearchEngine, SearchPath
 from supernatural_expert.search.index import connect
 
@@ -53,6 +61,7 @@ class Setup:
     path: SearchPath
     rerank: bool = False
     against: str | None = "lexical"
+    reranker: RerankerModel = DEFAULT_RERANKER
 
 
 SETUPS = (
@@ -60,6 +69,16 @@ SETUPS = (
     Setup("vector", "vector"),
     Setup("hybrid", "hybrid"),
     Setup("hybrid+rerank", "hybrid", rerank=True, against="hybrid"),
+    # The larger cross-encoder is judged against the smaller one rather than
+    # against plain hybrid, because what is being asked is whether the extra
+    # depth is worth its cost, not whether reranking works at all.
+    Setup(
+        "hybrid+rerank-L12",
+        "hybrid",
+        rerank=True,
+        against="hybrid+rerank",
+        reranker=MS_MARCO_MINILM_L12_V2,
+    ),
 )
 
 SCORES_FILE = RESULTS_DIR / "retrieval_scores.csv"
@@ -132,17 +151,30 @@ def write_results(columns: list[str], rows: list[list[str]], path: Path) -> None
         writer.writerows(rows)
 
 
-def run(engine: SearchEngine, questions: list[Question]) -> dict[str, list[int | None]]:
+def run(connection: Any, questions: list[Question]) -> dict[str, list[int | None]]:
     """Measure every setup over the same questions, reporting each as it finishes.
 
     The measurements are returned rather than the scores, because comparing two
     setups needs their per-question ranks and a score has already averaged them
     away.
+
+    One engine is built per cross-encoder, sharing the encoder between them: the
+    embedding side is the same for every setup here, and loading those weights
+    once keeps a comparison of rerankers from paying for it twice.
     """
+    encoder = Encoder()
+    engines: dict[str, SearchEngine] = {}
     measurements: dict[str, list[int | None]] = {}
     for setup in SETUPS:
+        key = setup.reranker.repository if setup.rerank else "none"
+        if key not in engines:
+            engines[key] = SearchEngine(
+                connection,
+                encoder=encoder,
+                reranker=Reranker(setup.reranker) if setup.rerank else None,
+            )
         measurements[setup.label] = measure(
-            engine, questions, path=setup.path, rerank=setup.rerank
+            engines[key], questions, path=setup.path, rerank=setup.rerank
         )
         print(f"  {setup.label}: MRR {score(measurements[setup.label]).mrr:.4f}")
     return measurements
@@ -159,7 +191,7 @@ def main() -> int:
 
     connection = connect(settings)
     try:
-        measurements = run(SearchEngine(connection), tuning)
+        measurements = run(connection, tuning)
     finally:
         connection.close()
 

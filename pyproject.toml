@@ -17,6 +17,7 @@ dependencies = [
     "onnxruntime>=1.28.0",
     "opentelemetry-api>=1.44.0",
     "pydantic-ai-slim[openai]>=2.27.0",
+    "pydantic-evals>=2.27.0",
     "python-dotenv>=1.2.2",
     "semantic-text-splitter>=0.32.0",
     "streamlit>=1.61.1",

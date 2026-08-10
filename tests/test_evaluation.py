@@ -9,17 +9,28 @@ position.
 from typing import cast
 
 import pytest
+from pydantic_ai.models.test import TestModel
 
+from supernatural_expert.evaluation.answers import (
+    MEASURES,
+    Judged,
+    build_dataset,
+    verdicts,
+)
 from supernatural_expert.evaluation.dataset import (
+    ANSWER_SUBSET_SIZE,
     Question,
+    choose_answer_subset,
     choose_held_out,
     is_season_introduction,
+    load_answer_subset,
     load_held_out,
     load_questions,
     split,
 )
 from supernatural_expert.evaluation.retrieval import (
     compare,
+    compare_values,
     hit_rate,
     measure,
     rank_of,
@@ -92,6 +103,52 @@ def test_split_holds_out_both_document_kinds() -> None:
     held_out = load_held_out()
     assert any(is_season_introduction(document) for document in held_out)
     assert any(not is_season_introduction(document) for document in held_out)
+
+
+def test_committed_answer_subset_matches_the_seed() -> None:
+    """Both answer setups have to see the same questions in the same order."""
+    tuning, _ = split(load_questions(), load_held_out())
+    assert load_answer_subset() == choose_answer_subset(tuning)
+
+
+def test_the_answer_subset_leaves_the_held_out_documents_unread() -> None:
+    subset = load_answer_subset()
+    assert len(subset) == ANSWER_SUBSET_SIZE
+    assert not {question.document_id for question in subset} & load_held_out()
+
+
+def test_comparing_values_pairs_them_question_by_question() -> None:
+    """Two setups that swap wins on every question tie, however far apart each is."""
+    decided = compare_values([1.0] * 20, [0.0] * 20)
+    swapped = compare_values([1.0, 0.0] * 10, [0.0, 1.0] * 10)
+
+    assert decided.mean == 1.0
+    assert not decided.tie
+    assert swapped.mean == 0.0
+    assert swapped.tie
+
+
+def test_the_report_names_every_measure_the_comparison_reads() -> None:
+    """A renamed verdict would read as zero everywhere rather than as an error.
+
+    The judge is a stub, so what this pins is the wiring between the evaluators
+    and the names `verdicts` looks up, not anything about the answers.
+    """
+    questions = [Question(document_id="s01e05", text="Who dies in Toledo?")]
+    dataset = build_dataset(questions, TestModel())
+
+    def task(question: str) -> Judged:
+        return Judged(
+            text="A plumber.",
+            citations=["s01e05"],
+            cited_documents="The plumber drowns.",
+            retrieved=["s01e05"],
+        )
+
+    report = dataset.evaluate_sync(task, progress=False, max_concurrency=1)
+
+    assert sorted(report.cases[0].assertions) == sorted(MEASURES)
+    assert verdicts(report, ["000-s01e05"], "retrieved") == [1.0]
 
 
 def test_rank_of_finds_the_answering_document() -> None:

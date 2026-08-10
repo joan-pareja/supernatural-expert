@@ -975,6 +975,23 @@ wheels = [
 ]
 
 [[package]]
+name = "pydantic-evals"
+version = "2.27.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "anyio" },
+    { name = "logfire-api" },
+    { name = "pydantic" },
+    { name = "pydantic-ai-slim" },
+    { name = "pyyaml" },
+    { name = "rich" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/5e/8a/e44c210fc0eb317729432b9fa64c92111c4e3aecdbf5c1371f7622ba177f/pydantic_evals-2.27.0.tar.gz", hash = "sha256:dc0ea51e921a50b9d20bc7e99ac437de97d30a4a02a7d38a658b6edfe09cf19c", size = 85734, upload-time = "2026-08-08T04:02:48.819Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/87/19/3937e472ca6d72a139c772b08cc4557b3e0835485a5ec5d07df428e2ab01/pydantic_evals-2.27.0-py3-none-any.whl", hash = "sha256:e97ee1128b50a4296c557a80bb3f0a5f5bdf6e16576ee7a2822d7fc3d28d6e03", size = 100915, upload-time = "2026-08-08T04:02:41.715Z" },
+]
+
+[[package]]
 name = "pydantic-graph"
 version = "2.27.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1416,6 +1433,7 @@ dependencies = [
     { name = "onnxruntime" },
     { name = "opentelemetry-api" },
     { name = "pydantic-ai-slim", extra = ["openai"] },
+    { name = "pydantic-evals" },
     { name = "python-dotenv" },
     { name = "semantic-text-splitter" },
     { name = "streamlit" },
@@ -1438,6 +1456,7 @@ requires-dist = [
     { name = "onnxruntime", specifier = ">=1.28.0" },
     { name = "opentelemetry-api", specifier = ">=1.44.0" },
     { name = "pydantic-ai-slim", extras = ["openai"], specifier = ">=2.27.0" },
+    { name = "pydantic-evals", specifier = ">=2.27.0" },
     { name = "python-dotenv", specifier = ">=1.2.2" },
     { name = "semantic-text-splitter", specifier = ">=0.32.0" },
     { name = "streamlit", specifier = ">=1.61.1" },

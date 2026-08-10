@@ -3,7 +3,7 @@ type: reference
 title: Course rubric
 description: Maps the LLM Zoomcamp project rubric to planned evidence.
 status: approved
-modified: 2026-08-09T22:19:00+02:00
+modified: 2026-08-10T14:21:00+02:00
 tags:
 - rubric
 - course
@@ -29,9 +29,9 @@ Source: [LLM Zoomcamp project documentation](https://github.com/DataTalksClub/ll
 | Retrieval flow | 2 | PostgreSQL knowledge base, Pydantic AI, and an LLM. |
 | Retrieval evaluation | 2 | Compare several approaches and use the best. |
 | LLM evaluation | 2 | Compare several answer setups and use the best. |
-| Interface | 2 | Streamlit chat and reporting pages. |
+| Interface | 2 | The Streamlit chat. A UI is the whole criterion; reporting is not part of it. |
 | Ingestion pipeline | 2 | Automated dlt pipeline from the Wikipedia API. |
-| Monitoring | 2 | Feedback, five chart queries, dashboard code, and screenshots. |
+| Monitoring | 2 | Thumbs feedback in the chat, and a dashboard of five charts with screenshots. Where it is drawn is [Monitoring](monitoring.md)'s to settle. |
 | Containerization | 2 | App and PostgreSQL run through Docker Compose. |
 | Reproducibility | 2 | Public data, pinned dependencies, and tested run steps. |
 
@@ -45,6 +45,7 @@ Base target: **18/18**.
 | Document reranking | 1 | An `ms-marco-MiniLM-L-6-v2` cross-encoder over the hybrid candidates, measured and adopted. See [Retrieval](retrieval.md). |
 | User query rewriting | 1 | Not pursued: a model call on every turn, and a non-deterministic step beside the evaluations. See [Retrieval](retrieval.md). |
 | Cloud deployment | 2 | Not pursued. |
+| Exceptional work | up to 3 | A reviewer's to award, not a target to build towards. |
 
 The technical target is **20 points without cloud**, and the locked plan now
 accounts for all of them. Reranking was the last one outstanding; it is measured

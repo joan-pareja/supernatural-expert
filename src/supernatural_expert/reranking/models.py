@@ -54,4 +54,19 @@ MS_MARCO_MINILM_L6_V2 = RerankerModel(
     max_tokens=512,
 )
 
+# The same training data and the same tokenizer with twice the depth, which is
+# what makes it the honest test of whether the smaller one is short of capacity
+# rather than short of the right training. Both are English-only, which a
+# multilingual reranker of any size is not: capacity spent on other languages is
+# capacity this corpus never uses.
+MS_MARCO_MINILM_L12_V2 = RerankerModel(
+    repository="Xenova/ms-marco-MiniLM-L-12-v2",
+    revision="42a4a787e30451cf9dbd09080c2a5b8dde332c1e",
+    max_tokens=512,
+)
+
+# Every reranker a run may ask for, so downloading covers what evaluation
+# compares rather than only what the app ships.
+RERANKERS = (MS_MARCO_MINILM_L6_V2, MS_MARCO_MINILM_L12_V2)
+
 DEFAULT_RERANKER = MS_MARCO_MINILM_L6_V2

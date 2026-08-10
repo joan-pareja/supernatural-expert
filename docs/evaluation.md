@@ -3,7 +3,7 @@ type: reference
 title: Evaluation
 description: Defines the small offline and online checks used to choose the app defaults.
 status: approved
-modified: 2026-08-10T00:56:00+02:00
+modified: 2026-08-10T16:48:00+02:00
 tags:
 - evaluation
 - quality
@@ -28,9 +28,22 @@ over all 132 documents, so none is missing from the benchmark.
 Each question records the document that answers it. That label is what retrieval
 is scored against.
 
-The set is generated once and then committed, as `evaluation/ground_truth.csv`,
-one row per question carrying its `document_id`. Questions never change between
-runs, which is what makes a score comparable to the one before it.
+The set is committed as `evaluation/ground_truth.csv`, one row per question
+carrying its `document_id`. Questions are fixed between runs, which is what makes
+a score comparable to the one before it.
+
+They were rewritten once, after the first round of measurements, and the phrasing
+is what changed rather than the labels or the counts. The first set asked in
+polished, uniform sentences that each named a character, town, or object; the
+present one asks the way a viewer does, at varying length, and gives every
+document at least one question carrying no proper noun at all. Documents,
+per-document counts, and the held-out split are untouched, so the split still
+covers what it did before. One question was found answerable by two documents
+during the pass and relabelled.
+
+Scores from before that rewrite do not compare to scores after it. The rewrite is
+recorded here rather than smoothed over, because a benchmark that changes quietly
+is worth less than one that changes in the open.
 
 No model runs inside a retrieval measurement. Search, fusion, chunking, and
 reranking are all deterministic given the same questions and the same index, so
@@ -60,15 +73,22 @@ would against how people really ask. The generator is asked to paraphrase and to
 avoid copying distinctive wording, so lexical and vector search are compared on
 even terms. Where the bias cannot be removed, the reported results say so.
 
-One part of it cannot be removed. Every question is anchored on a named guest
-character, town, or object, because 126 episodes of one show are otherwise too
+Every question is anchored, because 126 episodes of one show are otherwise too
 alike for any single document to be the answer: without an anchor, "which brother
 is possessed by a demon" belongs to dozens of episodes and the label is simply
-wrong. Anchors are rare terms, which is what lexical ranking is best at, so the
-set leans towards it by construction. That is a property of episodic retrieval
-rather than a flaw to correct, and rewording questions until the paths draw level
-would only make the measure less honest. The leaning is reported beside the
-scores.
+wrong. What the anchor may be is the part that changed. A named guest character,
+town, or object is a rare term, which is what lexical ranking is best at, so a set
+anchored that way leans towards it by construction. Every document therefore
+carries at least one question anchored on a situation instead — the truck with
+nobody driving it, the town where nobody can die — which identifies one episode
+just as narrowly without handing lexical search a rare word.
+
+The lean was real and is now measured rather than asserted. Rewriting the set
+this way cost lexical 0.14 MRR and vector 0.05, so roughly a tenth of lexical's
+apparent advantage was the anchoring rather than the retrieval. Nothing was
+chosen to favour a path: the questions were written for how a viewer asks, and
+the paths were re-measured afterwards. Vector search did not improve; it lost
+less.
 
 ## Retrieval evaluation
 
@@ -131,7 +151,10 @@ accident. Four defences, none of them a matter of care:
   side. It is generated once from a fixed seed and committed, and a test
   regenerates it to confirm the committed file is the one the seed produces.
 - Every comparison sees only the tuning side. The held-out side is read once, at
-  the end.
+  the end, with the setup already chosen. Reading it with two setups to see which
+  scores better would make it a second tuning set, and there would be nothing left
+  to check the choice against. It answers "does the winner hold up", never "which
+  should win", so the runner-up is never run against it.
 - Both scores are reported. The gap between them is the measurement; the chosen
   setup's own number looks trustworthy whether or not it is.
 - A setup is compared against a simpler one question by question, and the
@@ -146,20 +169,42 @@ accident. Four defences, none of them a matter of care:
 
 ## Answer evaluation
 
-At least two answer setups are compared, such as prompt or context choices.
-`pydantic-evals` judges relevance and support from the retrieved text; it fits
-the Pydantic AI agent already in use and sends results to Logfire without a
-second reporting path.
+Two answer setups are compared, differing in one thing: how many documents an
+answer is written from, five or three. Each document carries a whole episode
+plot, so this is the context budget rather than a recall setting, and the
+question is whether the smaller one costs anything. It sits on `AnswerDeps` so
+both counts run in one process against one agent.
 
-Judging is the expensive part: every setup costs one answer and one judge call
-per question. It therefore runs over a stratified subset of 60 to 80 questions
-rather than the full set, with a sample inspected by hand.
+`uv run python -m supernatural_expert.evaluation.answers` runs them and writes
+`evaluation/results/answer_scores.csv` and `answer_differences.csv`. It is the
+only measurement that runs the whole loop: retrieval scoring searches the
+question verbatim, while here the agent writes its own queries and is read on
+what it finally said.
+
+`pydantic-evals` judges each answer twice, on whether it addresses the question
+and on whether every claim appears in the documents cited with it. It fits the
+Pydantic AI agent already in use and sends results to Logfire without a second
+reporting path. A third measure costs nothing and needs no model: whether search
+reached the labelled document at all, which is what separates a bad answer from
+bad retrieval underneath it. Tokens per answer are recorded beside them, because
+without them "fewer documents is cheaper" is an assumption rather than a number.
+
+Judging is the expensive part: every setup costs one answer and two judge calls
+per question. It therefore runs over 70 questions rather than the full set,
+stratified by document kind and drawn from the tuning side, committed as
+`evaluation/answer_subset.csv` so both setups answer the same questions and a
+rerun compares against the run before it. A sample is inspected by hand.
+
+Setups are compared question by question, with the paired interval described
+above, and the same rule decides: an interval containing zero is a tie, and a tie
+goes to the simpler setup, which here is the smaller and cheaper one.
 
 This is the one measurement that cannot be frozen. A new answer setup produces
 new answers, which need new verdicts, so the judge has to run live and two runs
-of the same setup will not agree exactly. The judge model and its prompt are
-pinned, verdicts are stored with the run, and a narrow margin between two answer
-setups is read as a tie rather than a result.
+of the same setup will not agree exactly. The judge model and its rubrics are
+pinned, and a narrow margin between two answer setups is read as a tie rather
+than a result. The judge is deliberately not the answering model, because a
+judge sharing the answerer's blind spots would pass its own mistakes.
 
 ## Online evaluation
 
