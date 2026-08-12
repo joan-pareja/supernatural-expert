@@ -17,7 +17,6 @@ from supernatural_expert.embedding.encoder import (
     load_tokenizer,
 )
 from supernatural_expert.embedding.models import (
-    ALL_MINILM_L6_V2,
     BGE_SMALL_EN_V1_5,
     DEFAULT_MODEL,
     MODELS_DIR,
@@ -29,7 +28,6 @@ ABSENT = EmbeddingModel(
     revision="0000000",
     dimensions=384,
     max_tokens=256,
-    pooling="mean",
 )
 
 
@@ -68,13 +66,13 @@ class TestEmbeddingModel:
                 revision="ea104da",
                 dimensions=384,
                 max_tokens=max_tokens,
-                pooling="cls",
             )
 
     def test_the_retrieval_model_carries_a_query_marker(self) -> None:
         assert BGE_SMALL_EN_V1_5.query_prefix
-        # The similarity model was never trained with one, so it must stay bare.
-        assert ALL_MINILM_L6_V2.query_prefix == ""
+        # A model trained for plain similarity was never shown one, so the field
+        # stays bare unless a model asks for it.
+        assert ABSENT.query_prefix == ""
 
 
 class TestMissingWeights:
@@ -109,7 +107,7 @@ class TestEncoding:
         # Texts are padded to the longest in the call, so this one is padded far
         # further when it travels beside a long text. The mask is the only reason
         # its vector comes out the same, which makes this the test that fails if
-        # pooling ever counts padding.
+        # padding is ever allowed to reach the encoder.
         alone = encoder.encode_documents(["Bobby calls."])[0]
         crowded = encoder.encode_documents(
             ["Bobby calls.", "The brothers argue. " * 60]
@@ -144,16 +142,6 @@ class TestEncoding:
         assert encoder.token_count("wendigo " * 1000) == DEFAULT_MODEL.max_tokens
 
 
-@needs(ALL_MINILM_L6_V2)
-class TestMeanPooling:
-    """The other pooling shape, to keep the encoder from becoming bge-only."""
-
-    def test_a_mean_pooled_model_still_yields_unit_vectors(self) -> None:
-        vectors = Encoder(ALL_MINILM_L6_V2).encode_documents(["A wendigo hunts."])
-        assert vectors.shape == (1, ALL_MINILM_L6_V2.dimensions)
-        assert np.allclose(np.linalg.norm(vectors, axis=1), 1.0, atol=1e-5)
-
-
 @downloaded
 class TestTokenizerLoading:
     def test_truncation_is_off_so_length_can_be_measured(self) -> None:
@@ -171,8 +159,9 @@ class TestChunking:
         assert chunker.capacity == 254
 
     def test_the_model_window_caps_the_requested_size(self) -> None:
-        # A target above what the model can read must not win.
-        assert Chunker(ALL_MINILM_L6_V2, target_tokens=400).capacity == 254
+        # A target above what the model can read must not win. The default target
+        # sits under the window, so only a request past it exercises the cap.
+        assert Chunker(DEFAULT_MODEL, target_tokens=1000).capacity == 510
 
     def test_text_within_capacity_is_left_whole(self, chunker: Chunker) -> None:
         text = "Sam and Dean investigate a haunting in Wisconsin."

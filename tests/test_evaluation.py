@@ -15,9 +15,12 @@ from supernatural_expert.evaluation.answers import (
     MEASURES,
     Judged,
     build_dataset,
+    verdict_rows,
     verdicts,
 )
 from supernatural_expert.evaluation.dataset import (
+    ANSWER_SUBSET_B_FILE,
+    ANSWER_SUBSET_B_SEED,
     ANSWER_SUBSET_SIZE,
     Question,
     choose_answer_subset,
@@ -117,6 +120,20 @@ def test_the_answer_subset_leaves_the_held_out_documents_unread() -> None:
     assert not {question.document_id for question in subset} & load_held_out()
 
 
+def test_the_second_answer_subset_is_a_fresh_sample() -> None:
+    """A second read is only fresh if it shares no question with the first."""
+    tuning, _ = split(load_questions(), load_held_out())
+    first = load_answer_subset()
+    second = load_answer_subset(ANSWER_SUBSET_B_FILE)
+
+    assert second == choose_answer_subset(
+        tuning, seed=ANSWER_SUBSET_B_SEED, exclude=first
+    )
+    assert len(second) == ANSWER_SUBSET_SIZE
+    assert not set(first) & set(second)
+    assert not {question.document_id for question in second} & load_held_out()
+
+
 def test_comparing_values_pairs_them_question_by_question() -> None:
     """Two setups that swap wins on every question tie, however far apart each is."""
     decided = compare_values([1.0] * 20, [0.0] * 20)
@@ -149,6 +166,42 @@ def test_the_report_names_every_measure_the_comparison_reads() -> None:
 
     assert sorted(report.cases[0].assertions) == sorted(MEASURES)
     assert verdicts(report, ["000-s01e05"], "retrieved") == [1.0]
+
+
+def test_every_measure_is_written_out_with_its_verdict() -> None:
+    """The reasons are the artifact; a measure missing here cannot be reviewed."""
+    questions = [Question(document_id="s01e05", text="Who dies in Toledo?")]
+    dataset = build_dataset(questions, TestModel())
+
+    def task(question: str) -> Judged:
+        return Judged(
+            text="A plumber.",
+            citations=["s01e05"],
+            cited_documents="The plumber drowns.",
+            retrieved=["s01e05"],
+        )
+
+    report = dataset.evaluate_sync(task, progress=False, max_concurrency=1)
+    rows = verdict_rows(report, questions, ["000-s01e05"])
+
+    assert [row[1] for row in rows] == list(MEASURES)
+    assert all(row[0] == "Who dies in Toledo?" for row in rows)
+    assert all(row[2] in {"pass", "fail"} for row in rows)
+
+
+def test_a_question_whose_case_never_finished_still_gets_its_rows() -> None:
+    """A question absent from the file would read as one that was never asked."""
+    questions = [Question(document_id="s01e05", text="Who dies in Toledo?")]
+    dataset = build_dataset(questions, TestModel())
+
+    def task(question: str) -> Judged:
+        return Judged(text="", citations=[], cited_documents="", retrieved=[])
+
+    report = dataset.evaluate_sync(task, progress=False, max_concurrency=1)
+    rows = verdict_rows(report, questions, ["no-such-case"])
+
+    assert len(rows) == len(MEASURES)
+    assert all(row[2] == "" for row in rows)
 
 
 def test_rank_of_finds_the_answering_document() -> None:

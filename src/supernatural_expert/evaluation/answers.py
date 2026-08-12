@@ -1,4 +1,4 @@
-"""Judging whole answers, and the comparison that settles how much context one needs.
+"""Judging whole answers: how well the adopted setup answers, on its own terms.
 
 Run it from the repository root, with a database already loaded:
 
@@ -7,12 +7,13 @@ Run it from the repository root, with a database already loaded:
 This is the only measurement in the project that spends money and does not
 reproduce exactly, which is why it has an entry point of its own rather than
 running beside the retrieval scores. Each question costs one agent run and two
-judge calls per setup, so it reads the committed subset where retrieval scoring
-reads every question. See docs/evaluation.md.
+judge calls, so it reads a committed subset where retrieval scoring reads every
+question. See docs/evaluation.md.
 
 It is also the only measurement that runs the whole loop. A retrieval score
-searches the question verbatim; here the agent writes its own queries, decides
-when to search again, and is read on what it finally said.
+searches one question and stops; here the question is searched verbatim, the
+agent rewrites and searches again if it needs to, and it is read on what it
+finally said.
 """
 
 import csv
@@ -42,29 +43,41 @@ from supernatural_expert.agent.answering import (
 )
 from supernatural_expert.config import Settings, load_settings
 from supernatural_expert.evaluation.dataset import (
+    ANSWER_SUBSET_B_FILE,
     RESULTS_DIR,
     Question,
     load_answer_subset,
+    load_held_out,
+    load_questions,
+    split,
 )
-from supernatural_expert.evaluation.retrieval import Difference, compare_values
 from supernatural_expert.monitoring.telemetry import configure_telemetry
 from supernatural_expert.search.engine import SearchEngine
 from supernatural_expert.search.index import connect
 
 SCORES_FILE = RESULTS_DIR / "answer_scores.csv"
-DIFFERENCES_FILE = RESULTS_DIR / "answer_differences.csv"
 
-# The setups compared, and the only thing that differs between them: how many
-# documents one answer is written from. The smaller one is the baseline, so a
-# difference that cannot be told from zero leaves the cheaper setup standing.
-BASELINE_DOCUMENTS = 3
-CANDIDATE_DOCUMENTS = ANSWER_DOCUMENTS
+# One row per question and measure, carrying the judge's own justification. The
+# scores say how many answers failed; only this says what they got wrong, and
+# reading a dozen of these is what turns a dropped measure into a change worth
+# making.
+VERDICTS_FILE = RESULTS_DIR / "answer_verdicts.csv"
+
+# `--held-out` reads the questions no tuning run has seen, once, with the setup
+# already chosen. It writes its own files so a held-out score can never overwrite
+# the tuning one it is meant to be compared against.
+HELD_OUT_SCORES_FILE = RESULTS_DIR / "answer_held_out.csv"
+HELD_OUT_VERDICTS_FILE = RESULTS_DIR / "answer_held_out_verdicts.csv"
+
+# The questions this reads. The second sample rather than the first, so the
+# adopted setup is scored on questions no earlier answer run saw.
+SUBSET_FILE = ANSWER_SUBSET_B_FILE
 
 # Pinned, and stated here rather than taken from the answering model, because a
 # judge that moves makes two runs incomparable for a reason that has nothing to
 # do with the setups. It is deliberately not the answering model: a judge cannot
 # be trusted to catch a mistake it would have made itself.
-JUDGE_MODEL = "gpt-5.6-luna"
+JUDGE_MODEL = "gpt-5.6-terra"
 
 JUDGE_INSTRUCTIONS = """
 You grade one answer against one rubric and nothing else.
@@ -292,6 +305,36 @@ def _decimal(value: float) -> str:
     return f"{value:.3f}"
 
 
+def verdict_rows(
+    report: EvaluationReport[str, Judged, str],
+    questions: Sequence[Question],
+    names: Sequence[str],
+) -> list[list[str]]:
+    """Return every verdict with the reason the judge gave for it.
+
+    A case that failed outright still gets a row per measure, because a question
+    missing from this file would read as one that was never asked.
+    """
+    scored = {case.name: case for case in report.cases}
+    rows: list[list[str]] = []
+    for name, question in zip(names, questions):
+        case = scored.get(name)
+        for measure in MEASURES:
+            assertion = case.assertions.get(measure) if case else None
+            if assertion is None:
+                rows.append([question.text, measure, "", "The case did not finish."])
+                continue
+            rows.append(
+                [
+                    question.text,
+                    measure,
+                    "pass" if assertion.value else "fail",
+                    assertion.reason or "",
+                ]
+            )
+    return rows
+
+
 def write_scores(
     path: Path, rows: Sequence[Sequence[str]], header: Sequence[str]
 ) -> None:
@@ -305,7 +348,16 @@ def write_scores(
 def main() -> int:
     settings = load_settings()
     configure_telemetry(settings)
-    questions = load_answer_subset()
+
+    if "--held-out" in sys.argv[1:]:
+        _, questions = split(load_questions(), load_held_out())
+        scores_file, verdicts_file = HELD_OUT_SCORES_FILE, HELD_OUT_VERDICTS_FILE
+        print(f"Reading {len(questions)} held-out questions, once.")
+    else:
+        questions = load_answer_subset(SUBSET_FILE)
+        scores_file, verdicts_file = SCORES_FILE, VERDICTS_FILE
+        print(f"Scoring {len(questions)} tuning questions.")
+
     names = [f"{index:03d}-{q.document_id}" for index, q in enumerate(questions)]
 
     model = build_model(settings)
@@ -313,75 +365,45 @@ def main() -> int:
 
     connection = connect(settings)
     try:
-        engine = SearchEngine(connection)
-        reports = {
-            documents: dataset.evaluate_sync(
-                build_task(engine, model, documents),
-                name=f"answers-{documents}-documents",
-                # SearchEngine is not thread-safe and pydantic-evals runs a
-                # synchronous task in a worker thread, so cases run one at a time.
-                max_concurrency=1,
-            )
-            for documents in (BASELINE_DOCUMENTS, CANDIDATE_DOCUMENTS)
-        }
+        report = dataset.evaluate_sync(
+            build_task(SearchEngine(connection), model, ANSWER_DOCUMENTS),
+            name=f"answers-{ANSWER_DOCUMENTS}-documents",
+            # SearchEngine is not thread-safe and pydantic-evals runs a
+            # synchronous task in a worker thread, so cases run one at a time.
+            max_concurrency=1,
+        )
     finally:
         connection.close()
 
-    measured = {
-        documents: {measure: verdicts(report, names, measure) for measure in MEASURES}
-        for documents, report in reports.items()
-    }
+    measured = {measure: verdicts(report, names, measure) for measure in MEASURES}
 
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     write_scores(
-        SCORES_FILE,
+        scores_file,
         [
             [
-                f"{documents} documents",
+                f"{ANSWER_DOCUMENTS} documents",
                 str(len(questions)),
                 *(
-                    _decimal(sum(measured[documents][measure]) / len(questions))
+                    _decimal(sum(measured[measure]) / len(questions))
                     for measure in MEASURES
                 ),
-                _decimal(mean_tokens(reports[documents])),
+                _decimal(mean_tokens(report)),
             ]
-            for documents in (BASELINE_DOCUMENTS, CANDIDATE_DOCUMENTS)
         ],
         ["setup", "questions", *MEASURES, "mean_tokens"],
     )
 
-    differences: dict[str, Difference] = {
-        measure: compare_values(
-            measured[CANDIDATE_DOCUMENTS][measure],
-            measured[BASELINE_DOCUMENTS][measure],
-        )
-        for measure in MEASURES
-    }
     write_scores(
-        DIFFERENCES_FILE,
-        [
-            [
-                measure,
-                _decimal(difference.mean),
-                *(_decimal(bound) for bound in difference.interval),
-                "tie" if difference.tie else "decided",
-                str(difference.better),
-                str(difference.worse),
-                str(difference.tied),
-            ]
-            for measure, difference in differences.items()
-        ],
-        ["measure", "mean", "low", "high", "verdict", "better", "worse", "tied"],
+        verdicts_file,
+        verdict_rows(report, questions, names),
+        ["question", "measure", "verdict", "reason"],
     )
 
-    print(f"Wrote {SCORES_FILE} and {DIFFERENCES_FILE}.")
-    for measure, difference in differences.items():
-        verdict = "tie" if difference.tie else "decided"
-        print(
-            f"{measure}: {_decimal(difference.mean)} "
-            f"[{_decimal(difference.interval[0])}, "
-            f"{_decimal(difference.interval[1])}] {verdict}"
-        )
+    print(f"Wrote {scores_file} and {verdicts_file}.")
+    for measure in MEASURES:
+        print(f"{measure}: {_decimal(sum(measured[measure]) / len(questions))}")
+    print(f"mean_tokens: {_decimal(mean_tokens(report))}")
     return 0
 
 

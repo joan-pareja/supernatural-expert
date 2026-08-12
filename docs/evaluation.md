@@ -3,7 +3,7 @@ type: reference
 title: Evaluation
 description: Defines the small offline and online checks used to choose the app defaults.
 status: approved
-modified: 2026-08-11T01:42:00+02:00
+modified: 2026-08-12T11:21:00+02:00
 tags:
 - evaluation
 - quality
@@ -178,42 +178,50 @@ accident. Four defences, none of them a matter of care:
 
 ## Answer evaluation
 
-Two answer setups are compared, differing in one thing: how many documents an
-answer is written from, five or three. Each document carries a whole episode
-plot, so this is the context budget rather than a recall setting, and the
-question is whether the smaller one costs anything. It sits on `AnswerDeps` so
-both counts run in one process against one agent.
-
-`uv run python -m supernatural_expert.evaluation.answers` runs them and writes
-`evaluation/results/answer_scores.csv` and `answer_differences.csv`. It is the
-only measurement that runs the whole loop: retrieval scoring searches the
-question verbatim, while here the agent writes its own queries and is read on
-what it finally said.
+`uv run python -m supernatural_expert.evaluation.answers` scores the adopted
+setup and writes `evaluation/results/answer_scores.csv`. It is the only
+measurement that runs the whole loop: retrieval scoring searches one question and
+stops, while here the question is searched verbatim, the agent rewrites and
+searches again if it needs to, and it is read on what it finally said.
 
 `pydantic-evals` judges each answer twice, on whether it addresses the question
 and on whether every claim appears in the documents cited with it. It fits the
 Pydantic AI agent already in use and sends results to Logfire without a second
 reporting path. A third measure costs nothing and needs no model: whether search
 reached the labelled document at all, which is what separates a bad answer from
-bad retrieval underneath it. Tokens per answer are recorded beside them, because
-without them "fewer documents is cheaper" is an assumption rather than a number.
+bad retrieval underneath it. Tokens per answer are recorded beside them, so the
+cost of a setting is a number rather than an assumption.
 
-Judging is the expensive part: every setup costs one answer and two judge calls
-per question. It therefore runs over 70 questions rather than the full set,
-stratified by document kind and drawn from the tuning side, committed as
-`evaluation/answer_subset.csv` so both setups answer the same questions and a
-rerun compares against the run before it. A sample is inspected by hand.
+Every verdict is written out with the judge's own justification, to
+`answer_verdicts.csv`. The scores say how many answers failed; only the reasons
+say what they got wrong, and reading a dozen of them is what turns a dropped
+measure into a change worth making. That is how the instruction to answer at the
+level of detail the documents hold was written, and it is the sampling by hand
+that this section used to promise in the abstract.
 
-Setups are compared question by question, with the paired interval described
-above, and the same rule decides: an interval containing zero is a tie, and a tie
-goes to the simpler setup, which here is the smaller and cheaper one.
+Judging is the expensive part: each question costs one answer and two judge
+calls. It therefore runs over 70 questions rather than the full set, stratified
+by document kind and drawn from the tuning side. Two such samples are committed,
+`evaluation/answer_subset_a.csv` and `answer_subset_b.csv`, sharing no question, so
+a setup changed in response to one sample can be read again on the other.
 
-This is the one measurement that cannot be frozen. A new answer setup produces
-new answers, which need new verdicts, so the judge has to run live and two runs
-of the same setup will not agree exactly. The judge model and its rubrics are
-pinned, and a narrow margin between two answer setups is read as a tie rather
-than a result. The judge is deliberately not the answering model, because a
-judge sharing the answerer's blind spots would pass its own mistakes.
+How many documents an answer is written from was settled this way. Five and three
+were compared question by question with the paired interval described above,
+every measure tied, and the rule decided it: an interval containing zero is a tie,
+and a tie goes to the simpler setup, which here is also the cheaper one. That
+comparison ran on the answering model of the time, and nothing measured since has
+given a reason to reopen it.
+
+`--held-out` scores the adopted setup over the questions no tuning run has seen,
+once, writing `answer_held_out.csv` beside its own verdicts. It answers "does the
+winner hold up", never "which should win".
+
+This is the one measurement that cannot be frozen. New answers need new verdicts,
+so the judge runs live and two runs of the same setup will not agree exactly. The
+judge model and its rubrics are pinned so that a change in the score is a change
+in the system rather than in the ruler. The judge is deliberately not the
+answering model, because a judge sharing the answerer's blind spots would pass
+its own mistakes.
 
 ## Online evaluation
 

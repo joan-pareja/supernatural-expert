@@ -1,9 +1,10 @@
 """The agent that answers a question from retrieved episode text.
 
-One model, one search tool, one checked answer. The loop is Pydantic AI's: the
-model decides when to search and with what wording, reads the results, and
-searches again if they do not settle the question. Nothing here schedules those
-calls. See docs/agent.md.
+One model, one search tool, one checked answer. The first search is this module's
+and runs before the model does: the question goes to search word for word,
+because that was measured to reach the answering document more often than any
+rewrite of it. Every search after that is the model's own, in its own wording and
+at its own timing, up to a budget. See docs/agent.md.
 
 Answers are grounded in two ways that do not depend on each other. The
 instructions tell the model to write only from what search returned, which it can
@@ -20,7 +21,14 @@ from typing import Annotated
 
 from opentelemetry import trace
 from pydantic import Field
-from pydantic_ai import Agent, AgentRunResult, ModelMessage, ModelRetry, RunContext
+from pydantic_ai import (
+    Agent,
+    AgentRunResult,
+    ModelMessage,
+    ModelRetry,
+    RunContext,
+    UsageLimits,
+)
 from pydantic_ai.models.openai import OpenAIResponsesModel
 from pydantic_ai.providers.openai import OpenAIProvider
 
@@ -29,7 +37,7 @@ from supernatural_expert.monitoring.telemetry import configure_telemetry
 from supernatural_expert.search.engine import SearchEngine, SearchFilters, SearchPath
 from supernatural_expert.search.index import connect
 
-ANSWER_MODEL = "gpt-5.4-mini"
+ANSWER_MODEL = "gpt-5.6-luna"
 
 # What an answer searches with, settled by the measurements in
 # docs/evaluation.md rather than chosen per question. Reranking is the tool's to
@@ -38,6 +46,17 @@ ANSWER_MODEL = "gpt-5.4-mini"
 SEARCH_PATH: SearchPath = "hybrid"
 RERANK_ANSWERS = True
 
+# Searches the model may run for itself, after the verbatim one `ask` has already
+# run. Traces showed a turn spending six searches on five rewordings of the same
+# question, two of them returning identical documents, so this is a budget rather
+# than a safety valve.
+FOLLOW_UP_SEARCHES = 2
+
+# The hard stop behind the budget. `tool_calls_limit` aborts the run rather than
+# letting the model answer, so it sits above the budget the tool enforces
+# gracefully and only fires if that fails.
+SEARCH_BACKSTOP = FOLLOW_UP_SEARCHES + 2
+
 # Documents one search hands the model. Each carries a whole episode plot, so
 # this is a context budget as much as a recall setting: past a handful, the
 # answer is written from more text than any question needs.
@@ -45,27 +64,33 @@ RERANK_ANSWERS = True
 # The default rather than the setting. It sits on AnswerDeps so answer evaluation
 # can run two counts against each other in one process, which is the comparison
 # docs/evaluation.md settles this number on.
-ANSWER_DOCUMENTS = 5
+ANSWER_DOCUMENTS = 3
 
 INSTRUCTIONS = """
 You answer questions about the television series Supernatural, seasons 1 to 6,
 for a viewer who is watching it now.
 
-Search before answering anything about the show, and write the answer only from
-what the search returned.
+The question has already been searched word for word, and the results arrive with
+it. Write the answer only from search results.
 
-Make the first search the question as it was asked, word for word. The viewer's
-own wording carries names and details that match the documents directly, and
-rewriting it discards them before search ever sees them.
+Search again when those results do not settle the question, and rewrite freely
+then. A viewer describes things loosely while the documents carry the show's own
+names for them, so a search written in the series' vocabulary finds what the
+first could not.
 
-Search again when the first results do not settle the question, and rewrite
-freely then. A viewer describes things loosely while the documents carry the
-show's own names for them, so a second search written in the series' vocabulary
-finds what the first could not.
+You may search twice more at most, so make each one a different line of attack
+rather than another wording of the same one. Rewording a search that already
+answered as well as it could returns the same documents again.
 
 Leave the season and episode filters unset unless the question names one.
 Narrowing to a season inferred from earlier results hides every document outside
 it, the answer included.
+
+Answer at the level of detail the documents hold, and stop where they stop. Do
+not explain why something happened unless a document says why, do not name anyone
+the documents leave unnamed, and do not join two facts into a cause the documents
+do not state. A sentence that reads as the natural next thing to say is the one
+most likely to be yours rather than theirs.
 
 Cite every document the answer rests on by its document_id.
 
@@ -143,7 +168,16 @@ class AnswerDeps:
     retrieved: dict[str, RetrievedDocument] = field(
         default_factory=dict[str, RetrievedDocument]
     )
+    # Searches the model has run for itself. The verbatim one is not counted,
+    # because it is not the model's to spend.
+    searches: int = 0
 
+
+# The verbatim search runs outside the agent, so Pydantic AI opens no span around
+# it and this is the only way it appears in a trace at all. The rule the tool
+# follows is unchanged: nothing opens a second span over work the library already
+# covers. See docs/monitoring.md.
+tracer = trace.get_tracer("supernatural_expert.agent")
 
 expert = Agent(
     deps_type=AnswerDeps,
@@ -153,7 +187,52 @@ expert = Agent(
 )
 
 
-@expert.tool
+def run_search(
+    deps: AnswerDeps, query: str, filters: SearchFilters | None = None
+) -> list[RetrievedDocument]:
+    """Search, record what search did, and remember what it returned.
+
+    Both searches in a turn come through here: the verbatim one `ask` runs and
+    every rewrite the model asks for afterwards. Sharing it is what lets one
+    query read both, because the `search.*` attributes below land on whichever
+    span is running rather than on a span this function chooses.
+
+    The settings are recorded rather than assumed, so a trace still explains
+    itself after they change, and the ranked ids are lifted out of the result
+    because a query across traces should not have to parse five episode plots to
+    learn which documents came back. Without a configured Logfire these calls
+    land on a non-recording span and do nothing.
+    """
+    results = deps.engine.search(
+        query,
+        path=SEARCH_PATH,
+        limit=deps.documents,
+        filters=filters or SearchFilters(),
+        rerank=RERANK_ANSWERS,
+    )
+    span = trace.get_current_span()
+    span.set_attribute("search.path", SEARCH_PATH)
+    span.set_attribute("search.rerank", RERANK_ANSWERS)
+    span.set_attribute("search.limit", deps.documents)
+    span.set_attribute("search.documents", [result.document_id for result in results])
+    documents = [
+        RetrievedDocument(
+            document_id=result.document_id,
+            title=result.title,
+            season_number=result.season_number,
+            episode_number=result.episode_number,
+            content=result.content,
+            source_url=result.source_url,
+        )
+        for result in results
+    ]
+    deps.retrieved.update({document.document_id: document for document in documents})
+    return documents
+
+
+# The retry budget is the model's room to be told its searches are spent and to
+# answer anyway. One is the default and would be consumed by a single refusal.
+@expert.tool(retries=3)
 def search_episodes(
     ctx: RunContext[AnswerDeps],
     query: str,
@@ -170,43 +249,20 @@ def search_episodes(
         episode: Restrict to one episode number within `season`. Leave unset
             unless the question names an episode number.
     """
-    results = ctx.deps.engine.search(
-        query,
-        path=SEARCH_PATH,
-        limit=ctx.deps.documents,
-        filters=SearchFilters(season=season, episode=episode),
-        rerank=RERANK_ANSWERS,
-    )
-    # The tool's own span is the one running here, and instrumentation already
-    # recorded the arguments and the result on it. Only what search did with them
-    # is missing, so this adds that rather than opening a second span around the
-    # same three seconds. Without a configured Logfire these calls land on a
-    # non-recording span and do nothing.
-    #
-    # The settings are recorded rather than assumed, so a trace still explains
-    # itself after they change, and the ranked ids are lifted out of the result
-    # because a query across traces should not have to parse five episode plots
-    # to learn which documents came back.
-    span = trace.get_current_span()
-    span.set_attribute("search.path", SEARCH_PATH)
-    span.set_attribute("search.rerank", RERANK_ANSWERS)
-    span.set_attribute("search.limit", ctx.deps.documents)
-    span.set_attribute("search.documents", [result.document_id for result in results])
-    documents = [
-        RetrievedDocument(
-            document_id=result.document_id,
-            title=result.title,
-            season_number=result.season_number,
-            episode_number=result.episode_number,
-            content=result.content,
-            source_url=result.source_url,
+    # Refusing here rather than through `tool_calls_limit`, which raises and ends
+    # the run with no answer at all. The model is told the budget is spent and
+    # writes from what it already has, which is what a viewer should get.
+    if ctx.deps.searches >= FOLLOW_UP_SEARCHES:
+        raise ModelRetry(
+            f"No searches left: {FOLLOW_UP_SEARCHES} follow-ups is the limit. "
+            "Answer from the documents already retrieved, or say the corpus does "
+            "not cover the question."
         )
-        for result in results
-    ]
-    ctx.deps.retrieved.update(
-        {document.document_id: document for document in documents}
-    )
-    return documents
+    ctx.deps.searches += 1
+    # The tool's own span is the one running here, and instrumentation already
+    # recorded the arguments and the result on it, so nothing opens a second span
+    # around the same work.
+    return run_search(ctx.deps, query, SearchFilters(season=season, episode=episode))
 
 
 @expert.output_validator
@@ -245,6 +301,16 @@ def build_model(settings: Settings) -> OpenAIResponsesModel:
     )
 
 
+def render_documents(documents: list[RetrievedDocument]) -> str:
+    """Lay the verbatim search out for the model, as the tool's results arrive."""
+    if not documents:
+        return "Nothing was found."
+    return "\n\n".join(
+        f"[{document.document_id}] {document.title}\n{document.content}"
+        for document in documents
+    )
+
+
 def ask(
     question: str,
     deps: AnswerDeps,
@@ -257,9 +323,26 @@ def ask(
     needs `all_messages()` for the next turn, and one measuring the run needs its
     usage. `message_history` carries the earlier turns; without it every question
     stands alone.
+
+    The question is searched word for word here rather than asked for in the
+    instructions. Measurement put the agent's own phrasing about six points below
+    the question as asked, and a trace showed the model rewriting the first
+    search anyway: an instruction is a request, and this is the one search worth
+    a guarantee. What the model does afterwards is still its own.
     """
+    with tracer.start_as_current_span("search_episodes verbatim"):
+        documents = run_search(deps, question)
+
     return expert.run_sync(
-        question, deps=deps, model=model, message_history=message_history
+        f"{question}\n\n"
+        "<search_results>\n"
+        "Searching the question above word for word returned:\n\n"
+        f"{render_documents(documents)}\n"
+        "</search_results>",
+        deps=deps,
+        model=model,
+        message_history=message_history,
+        usage_limits=UsageLimits(tool_calls_limit=SEARCH_BACKSTOP),
     )
 
 

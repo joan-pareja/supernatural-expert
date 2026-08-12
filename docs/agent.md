@@ -3,7 +3,7 @@ type: reference
 title: Agent
 description: Defines the answering loop, its search tool, and what an answer may claim.
 status: approved
-modified: 2026-08-11T01:07:00+02:00
+modified: 2026-08-12T11:21:00+02:00
 tags:
 - agent
 - pydantic-ai
@@ -21,23 +21,26 @@ related:
 
 ## The loop
 
-Pydantic AI owns the loop. The model receives the question and one tool, decides
-whether to search and with what wording, reads what comes back, and searches
-again when the results do not settle the question. Nothing in the application
-schedules those calls or caps them by hand.
+Pydantic AI owns the loop, and the application owns its first move. The question
+goes to search word for word before the model runs, and those results arrive
+beside it. From there the model decides whether to search again and with what
+wording, reads what comes back, and stops when the results settle the question.
 
-What the model is told about that wording is the one lever over it, and the
-instructions split it in two. The first search carries the question word for
-word, because the viewer's own phrasing holds names and details that match the
-documents directly and a rewrite drops them before search runs. Later searches
-rewrite freely into the series' vocabulary, which is what reaches an episode a
-viewer described loosely; neither search path can bridge that gap alone, since a
-rephrasing is not a synonym either ranking can see.
+The first search is code rather than instruction because an instruction is a
+request. It was written as one first, and a trace showed the model rewriting it
+regardless: six searches in a single turn, five of them rewordings of the same
+question, two returning identical documents. Measurement settled which wording
+belongs first — the agent's own queries reach the answering document about six
+points less often than the question searched verbatim, over the same questions.
+[Evaluation](evaluation.md) owns that comparison.
 
-Measurement is what settled the order. The agent's own queries reach the
-answering document less often than the question searched verbatim, by about six
-points over the same questions, so the rewrite is worth having second and costly
-first. [Evaluation](evaluation.md) owns that comparison.
+Later searches rewrite freely into the series' vocabulary, which is what reaches
+an episode a viewer described loosely; neither search path can bridge that gap
+alone, since a rephrasing is not a synonym either ranking can see. Two of them is
+the budget, and the tool spends it: it refuses a third and says why, so a turn
+that wants one still answers from what it holds. A usage limit sits behind that
+as a backstop, and it ends the run instead of answering, which is why it is not
+the mechanism.
 
 The loop is synchronous. PostgreSQL access and ONNX inference both block, so an
 asynchronous agent would wait on the same work through more machinery, and the
@@ -55,8 +58,10 @@ narrow the search and enforce nothing, which is the same contract every caller
 of search gets. The model is told to leave them unset unless the question names
 one, because a wrong guess hides the answer rather than sharpening it.
 
-It returns whole documents, five of them. Each carries an episode plot, so the
-count is a context budget as much as a recall setting.
+It returns whole documents, three of them. Each carries an episode plot, so the
+count is a context budget as much as a recall setting. Five was tried first and
+scored no better, so the cheaper setting stands; [Evaluation](evaluation.md)
+holds that comparison.
 
 ## The answer as a schema
 
@@ -82,8 +87,8 @@ writes a URL and so cannot write a wrong one.
 Every identifier is checked against what the run actually retrieved. A citation
 for anything else fails validation and the answer goes back to the model, which
 sees which identifiers were invented. This is the part of grounding that does not
-depend on the model cooperating: a model that has read five documents can still
-cite a sixth it remembers, and a citation is worth what the guarantee behind it
+depend on the model cooperating: a model that has read three documents can still
+cite a fourth it remembers, and a citation is worth what the guarantee behind it
 is worth.
 
 The other part does depend on cooperation. The instructions say to write only
@@ -106,9 +111,14 @@ so this is the one instruction that has to hold against its own knowledge.
 
 ## Model
 
-`gpt-5.4-mini` answers, through `pydantic-ai-slim[openai]`. The key is passed to
-the provider explicitly, so the OpenAI SDK never reads it from the process
-environment, as every other client here is passed its credentials. It is the only
-credential the application requires, and it is required where an answer is
-written rather than where settings are read, so loading and indexing the corpus
-work without one.
+`gpt-5.6-luna` answers, through `pydantic-ai-slim[openai]`. It replaced
+`gpt-5.4-mini` on published benchmarks and on price rather than on this project's
+own questions, the same grounds the encoder was chosen on: a model is not
+selected with the data used to judge everything else. Logfire priced the two over
+this project's own traffic at $0.31 and $0.79 per million tokens.
+
+The key is passed to the provider explicitly, so the OpenAI SDK never reads it
+from the process environment, as every other client here is passed its
+credentials. It is the only credential the application requires, and it is
+required where an answer is written rather than where settings are read, so
+loading and indexing the corpus work without one.

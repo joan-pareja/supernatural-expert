@@ -1,8 +1,9 @@
 """Tests for the answering agent, with a scripted model and a stub engine.
 
 No model is called and no database is read. What these pin is the part of the
-agent that is ours rather than Pydantic AI's: the tool reaches search with the
-arguments the model chose, every document it returned stays resolvable as a
+agent that is ours rather than Pydantic AI's: the first search carries the
+question word for word, the tool reaches search with the arguments the model
+chose, follow-up searches run out, every document returned stays resolvable as a
 citation, and a citation for anything else does not survive the run.
 """
 
@@ -10,11 +11,14 @@ from typing import cast
 
 from pydantic_ai.messages import ModelMessage, ModelResponse, ToolCallPart
 from pydantic_ai.models.function import AgentInfo, FunctionModel
+from pydantic_ai.models.openai import OpenAIResponsesModel
 
 from supernatural_expert.agent.answering import (
     ANSWER_DOCUMENTS,
+    FOLLOW_UP_SEARCHES,
     Answer,
     AnswerDeps,
+    ask,
     expert,
 )
 from supernatural_expert.search.engine import SearchEngine, SearchFilters, SearchResult
@@ -104,6 +108,36 @@ def test_every_retrieved_document_resolves_to_its_source() -> None:
 
     assert set(deps.retrieved) == {"s01e01", "s01e02"}
     assert deps.retrieved["s01e01"].source_url.endswith("s01e01")
+
+
+def test_the_first_search_is_the_question_word_for_word() -> None:
+    question = "when do they get the gun that kills anything"
+    deps, engine = deps_for(result("s01e22", 1, 22))
+    # The model answers without searching, so any call the engine saw is ask's.
+    model = scripted([answer_call("The Colt.", ["s01e22"])])
+
+    ask(question, deps, cast(OpenAIResponsesModel, model))
+
+    assert engine.calls[0][0] == question
+    # The verbatim search is not the model's to spend.
+    assert deps.searches == 0
+
+
+def test_the_model_runs_out_of_follow_up_searches() -> None:
+    deps, engine = deps_for(result("s03e09", 3, 9))
+    attempts = [
+        [ToolCallPart(SEARCH_TOOL, {"query": f"rewording {number}"})]
+        for number in range(FOLLOW_UP_SEARCHES + 1)
+    ]
+    model = scripted(*attempts, [answer_call("Pagan gods.", ["s03e09"])])
+
+    run = expert.run_sync("Which episode is about Christmas?", deps=deps, model=model)
+
+    # The search past the budget is refused rather than run, and the model is
+    # told so and answers from what it already had.
+    assert len(engine.calls) == FOLLOW_UP_SEARCHES
+    assert deps.searches == FOLLOW_UP_SEARCHES
+    assert run.output == Answer(text="Pagan gods.", citations=["s03e09"])
 
 
 def test_an_invented_citation_is_sent_back() -> None:

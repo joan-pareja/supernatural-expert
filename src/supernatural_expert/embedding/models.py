@@ -11,7 +11,7 @@ are simply worse, which is the failure mode this shape exists to prevent.
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal, Protocol
+from typing import Protocol
 
 from supernatural_expert.config import REPOSITORY_ROOT
 
@@ -25,8 +25,8 @@ class OnnxModel(Protocol):
 
     Downloading and tokenizing care about a repository, a revision, and a place
     on disk, and nothing about what the graph computes. Stating that much as a
-    protocol lets a cross-encoder, which has no dimensions and no pooling, reuse
-    the same plumbing without pretending to be an encoder.
+    protocol lets a cross-encoder, which has no dimensions and no query marker,
+    reuse the same plumbing without pretending to be an encoder.
     """
 
     @property
@@ -42,12 +42,6 @@ class OnnxModel(Protocol):
     def download_command(self) -> str: ...
 
 
-# How one vector is drawn from the per-token outputs. Averaging every token under
-# the attention mask suits models trained that way; others were trained to carry
-# the whole meaning in the leading [CLS] position and are much worse when averaged.
-Pooling = Literal["mean", "cls"]
-
-
 @dataclass(frozen=True, slots=True)
 class EmbeddingModel:
     """One downloadable ONNX encoder and the facts callers need about it."""
@@ -59,7 +53,6 @@ class EmbeddingModel:
     # Text beyond this is dropped, so it belongs in the model definition rather
     # than at a call site that cannot know it.
     max_tokens: int
-    pooling: Pooling
     # Retrieval-trained models were shown queries wearing a marker and passages
     # wearing none, so a query has to arrive in that same shape. Models trained
     # for plain sentence similarity use no marker and leave this empty.
@@ -96,31 +89,7 @@ BGE_SMALL_EN_V1_5 = EmbeddingModel(
     revision="ea104dacec62c0de699686887e3f920caeb4f3e3",
     dimensions=384,
     max_tokens=512,
-    pooling="cls",
     query_prefix="Represent this sentence for searching relevant passages: ",
-)
-
-# The same encoder one size up, kept so the size of the model can be measured
-# rather than assumed. BAAI reports 53.25 against 51.68 on MTEB retrieval, and it
-# is otherwise identical in shape: the same query marker, the same pooling, the
-# same 512-token window, with 768 dimensions instead of 384.
-BGE_BASE_EN_V1_5 = EmbeddingModel(
-    repository="Xenova/bge-base-en-v1.5",
-    revision="4d6cd88e18e51a5e020c2c305726d76ada9c03cf",
-    dimensions=768,
-    max_tokens=512,
-    pooling="cls",
-    query_prefix="Represent this sentence for searching relevant passages: ",
-)
-
-# Kept as the course baseline and as a second shape for the encoder to satisfy:
-# mean pooling, no query marker. Not used by the application.
-ALL_MINILM_L6_V2 = EmbeddingModel(
-    repository="Xenova/all-MiniLM-L6-v2",
-    revision="751bff37182d3f1213fa05d7196b954e230abad9",
-    dimensions=384,
-    max_tokens=256,
-    pooling="mean",
 )
 
 DEFAULT_MODEL = BGE_SMALL_EN_V1_5

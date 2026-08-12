@@ -3,7 +3,7 @@ type: reference
 title: Monitoring
 description: Defines Logfire as the single telemetry and feedback source.
 status: approved
-modified: 2026-08-11T01:33:00+02:00
+modified: 2026-08-12T11:21:00+02:00
 tags:
 - monitoring
 - logfire
@@ -34,11 +34,22 @@ everything the search returned, and it lasts as long as the search inside it, so
 a span of its own around that call would repeat both.
 
 What instrumentation cannot know is how the search was run and how it ended up
-ranked. `search_episodes` therefore adds `search.path`, `search.rerank`, and
-`search.documents` to the span already covering it. The last of those lifts the
-ranked identifiers out of the returned documents, so a query across traces reads
-an array instead of parsing five episode plots. The chat turn below is the one
-span the project opens, and it exists for feedback rather than for telemetry.
+ranked. Every search therefore adds `search.path`, `search.rerank`,
+`search.limit`, and `search.documents` to whichever span is running. The last of
+those lifts the ranked identifiers out of the returned documents, so a query
+across traces reads an array instead of parsing five episode plots.
+
+Those attributes rather than a span name are what a query keys on, because a turn
+holds two kinds of search. The tool call the model makes lands on the span
+Pydantic AI already opened for it. The verbatim first search runs before the
+agent and outside it, as [Agent](agent.md) describes, so no instrumentation sees
+it and the application opens `search_episodes verbatim` around it. The rule is
+unchanged rather than bent: nothing opens a second span over work the library
+already covers, and this is work it never sees. A query filtering on
+`search.path` reads both.
+
+The chat turn is the only other span the project opens, and it exists for
+feedback rather than for telemetry.
 
 ## Feedback
 
@@ -92,8 +103,17 @@ reporting page would cost a read credential, a query client, and a second page t
 show the same numbers. A chart Logfire does not offer ready-made is built as a
 custom chart inside Logfire rather than outside it.
 
-The chat therefore has no reporting page, and the project needs no read
-credential.
+The chat therefore has no reporting page, and the running application needs no
+read credential.
+
+Reading the traces while building is a separate matter from serving them. Logfire
+publishes an MCP server, and connecting it lets a coding agent query spans
+directly instead of reading a dashboard after the fact: a turn that spent six
+searches on one question was found that way, a search that looked
+catastrophically slow turned out to be a single stalled query rather than the
+reranker, and every cost figure in [Journey](../JOURNEY.md) was read from spans
+rather than estimated. That read token belongs to whoever is developing, lives in
+their shell, and never enters the repository or the application's settings.
 
 ## Reviewer evidence
 

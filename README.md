@@ -14,15 +14,19 @@ of a two-week project choosing and loading a new corpus at runtime. A fixed
 *Supernatural* expert keeps the hard work on retrieval, evaluation, monitoring,
 and reproducibility.
 
-## Planned experience
+## What it does
 
 - Chat through Streamlit.
 - Search episode information with PostgreSQL text and vector search.
-- Combine both result lists with reciprocal rank fusion (RRF).
-- Answer with `gpt-5.4-mini` through Pydantic AI.
+- Combine both result lists with reciprocal rank fusion (RRF), then reorder them
+  with a cross-encoder that scores each result against the question.
+- Answer with `gpt-5.6-luna` through Pydantic AI, citing the documents used.
 - Refuse spoilers beyond Season 6 and answers unsupported by the corpus.
 - Collect thumbs-up and thumbs-down feedback.
-- Show evaluation and monitoring results from one Logfire data source.
+- Send every run, judge result, and rating to one Logfire project.
+
+All of the above runs today. The monitoring charts over that Logfire data are the
+piece still being built.
 
 The corpus is loaded from the Wikipedia Action API by a repeatable dlt pipeline.
 No web pages, raw API archives, or DuckDB landing database are part of the
@@ -93,8 +97,10 @@ The final local setup will use Docker Compose for the app and PostgreSQL. Docker
 will provide all software dependencies. OpenAI usage may cost money; the Logfire
 free tier does not.
 
-Private Logfire access is not part of the handoff. The public repository will
-show the dashboard code, its queries, and screenshots with at least five charts.
+Private Logfire access is not part of the handoff. The charts are drawn in
+Logfire over the spans the app already sends, so the repository carries the
+dashboard definition and screenshots, and the steps to point your own Logfire
+project at the app and watch it fill up.
 
 ## Documentation map
 

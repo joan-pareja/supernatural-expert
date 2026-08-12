@@ -1,0 +1,10 @@
+# Codex reads MCP servers from TOML, while Claude Code reads .mcp.json, so the
+# same server is declared twice rather than shared through a link. Both name the
+# US region, which is where this project's Logfire data lives.
+#
+# The token is named rather than discovered, for the reason every credential in
+# this project is: see AGENTS.md. Create a read token in the Logfire project
+# settings, export it as LOGFIRE_MCP_TOKEN, and it never enters the repository.
+[mcp_servers.logfire]
+url = "https://logfire-us.pydantic.dev/mcp"
+bearer_token_env_var = "LOGFIRE_MCP_TOKEN"

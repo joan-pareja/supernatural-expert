@@ -3,7 +3,7 @@ type: reference
 title: Roadmap
 description: Orders the two-week build.
 status: approved
-modified: 2026-08-09T22:37:00+02:00
+modified: 2026-08-12T11:21:00+02:00
 tags:
 - roadmap
 - planning
@@ -15,6 +15,10 @@ related:
 # Roadmap
 
 > Keep this as a short build order. Move settled design into its owning document.
+
+Steps 1 through 3 are built, and step 4 is built apart from the charts.
+[Journey](JOURNEY.md) is where what landed and what it was worth is recorded;
+this note stays the order, not the status.
 
 ## 1. Foundation
 
@@ -43,7 +47,7 @@ related:
   adopt each winner on its measured result rather than for having been built.
 - Add the cross-encoder reranking stage and measure it against hybrid alone.
 - Send runs, judge results, and thumbs feedback to Logfire.
-- Build at least five reporting charts from the Logfire Query API.
+- Build at least five charts in Logfire, over the spans the app already sends.
 
 ## 5. Delivery
 

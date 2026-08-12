@@ -5,7 +5,7 @@ and a run next month must score the same pair identically, or a comparison
 between them means nothing.
 
 It is a separate type from `EmbeddingModel` rather than another entry beside the
-encoders. A cross-encoder has no dimensions, no pooling, and no query marker,
+encoders. A cross-encoder has no dimensions and no query marker,
 because it never produces a vector; it reads a query and a passage together and
 returns one number. Giving it those fields would invite a caller to trust them.
 """

@@ -3,7 +3,7 @@ type: reference
 title: Course rubric
 description: Maps the LLM Zoomcamp project rubric to planned evidence.
 status: approved
-modified: 2026-08-11T01:38:00+02:00
+modified: 2026-08-12T11:21:00+02:00
 tags:
 - rubric
 - course
@@ -27,8 +27,8 @@ Source: [LLM Zoomcamp project documentation](https://github.com/DataTalksClub/ll
 |---|---:|---|
 | Problem description | 2 | README and [Scope](scope.md) explain the user problem. |
 | Retrieval flow | 2 | PostgreSQL knowledge base, Pydantic AI, and an LLM. |
-| Retrieval evaluation | 2 | Compare several approaches and use the best. |
-| LLM evaluation | 2 | Compare several answer setups and use the best. |
+| Retrieval evaluation | 2 | Five setups scored over 343 questions, the winner adopted and confirmed once on held-out documents. See [Journey](../JOURNEY.md) and `evaluation/results/`. |
+| LLM evaluation | 2 | Answers judged for relevance and support, four changes adopted on what it showed, and the result confirmed on 83 held-out questions. See [Evaluation](evaluation.md). |
 | Interface | 2 | The Streamlit chat. A UI is the whole criterion; reporting is not part of it. |
 | Ingestion pipeline | 2 | Automated dlt pipeline from the Wikipedia API. |
 | Monitoring | 2 | Thumbs feedback in the chat, and a dashboard of five charts with screenshots. Where it is drawn is [Monitoring](monitoring.md)'s to settle. |

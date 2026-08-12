@@ -120,16 +120,8 @@ class Encoder:
             self._session.run(None, feed),  # pyright: ignore[reportUnknownMemberType]
         )
         hidden = cast(NDArray[np.float32], outputs[0])
-        pooled = self._pool(hidden, mask)
+        # bge was trained to collect the whole meaning in the leading [CLS]
+        # position, which is never a padding token, so that row is the vector.
+        pooled = hidden[:, 0]
         norms = np.linalg.norm(pooled, axis=1, keepdims=True)
         return cast(Vectors, pooled / norms)
-
-    def _pool(self, hidden: Vectors, mask: NDArray[np.int64]) -> Vectors:
-        if self.model.pooling == "cls":
-            # These models were trained to collect the sentence meaning in the
-            # leading [CLS] position, which is never a padding token.
-            return hidden[:, 0]
-        # Padding tokens carry a mask of 0, so they contribute to neither the
-        # sum nor the divisor.
-        weights = mask[:, :, None].astype(np.float32)
-        return cast(Vectors, (hidden * weights).sum(axis=1) / weights.sum(axis=1))

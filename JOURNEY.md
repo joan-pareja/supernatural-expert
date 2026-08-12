@@ -3,7 +3,7 @@ type: reference
 title: Journey
 description: How the project reached its current shape, and what each turn was worth.
 status: approved
-modified: 2026-08-11T01:32:00+02:00
+modified: 2026-08-12T13:32:00+02:00
 tags:
 - journey
 - decisions
@@ -69,11 +69,14 @@ chosen on published retrieval benchmarks rather than on this project's own
 questions — a model this small should not be selected using the same data used to
 judge everything else.
 
+The next size up was tried early on and made no difference this corpus could
+show, so the small one stayed and the index never paid for 768 dimensions.
+
 **The turn that mattered:** the model's published tokenizer configuration capped
 input at 128 tokens. Left alone, 131 of the 132 documents would have been
 embedded from a fraction of their text, silently, with no error anywhere. Fixing
 it to the model's real window is what made chunking necessary and worthwhile:
-documents are now split to fit that window, turning 132 documents into 173
+documents are now split to fit that window, turning 132 documents into 180
 searchable units.
 
 See [Retrieval](docs/retrieval.md).
@@ -98,6 +101,15 @@ and fusing the two beat both.
 **Reranking was never in the plan.** It was added after the paths were settled,
 reading the top twenty results with a cross-encoder that scores each one against
 the question directly. It earned its place: MRR 0.808 to 0.881.
+
+**The questions it still got wrong were read one at a time**, and sorting them
+apart mattered more than the total. Of 43 misses, three documents never reached
+the candidate list at all, thirty-three were ordinary ranking failures — and
+seven had been ranked well by fusion and then *pushed down* by the reranker. That
+last group is what turned "the reranker is misbehaving" from a hunch into
+something to act on. A blended score, letting fusion keep a vote after reranking,
+was designed to rescue them. A deeper cross-encoder fixed them outright instead,
+so the blend was never built.
 
 **Optuna was in the plan, and was dropped.** Once the paths were measured, every
 parameter it would have searched turned out to be settled already — the fusion
@@ -131,6 +143,12 @@ and a tie goes to the simpler setup.
 **The held-out side answers one question, once:** does the winner hold up on
 documents no comparison ever saw? It is never used to choose between setups,
 because a set used to choose is no longer a set that can check the choice.
+
+One honest footnote. Two diagnostics — comparing the old questions against the
+rewritten ones, and dumping every miss to sort it — ran over all 426 questions
+and so passed over held-out ones. No setup was chosen from either, and no
+held-out question was edited, but "read once" describes the scores rather than
+every glance.
 
 Two later corrections came out of using it:
 
@@ -188,17 +206,20 @@ The model gets one tool, `search_episodes`, with optional season and episode
 filters it is told to leave alone unless the viewer names one — a wrong guess
 hides the answer rather than narrowing to it.
 
-**Instructions worth naming:**
+**Behaviour worth naming:**
 
-- The first search sends the question word for word. Measurement showed the
-  agent's own phrasing reaches the answering document about six points less often
-  than the question as asked, because a paraphrase drops the names the documents
-  match on.
+- The first search sends the question word for word, and it is code rather than
+  an instruction. Measurement showed the agent's own phrasing reaches the
+  answering document about six points less often than the question as asked,
+  because a paraphrase drops the names the documents match on. Asking for it in
+  the instructions was tried first; a trace showed the model rewriting anyway.
 - Every search after the first may be rewritten freely into the show's own
-  vocabulary, which is what finds an episode a viewer described loosely.
+  vocabulary, which is what finds an episode a viewer described loosely. Two of
+  them is the budget: the same trace spent six searches on five rewordings of one
+  question, two of which returned identical documents.
 - Answers cite the documents they rest on, and every citation is checked against
-  what that run actually retrieved. A model that has read five documents can
-  still cite a sixth it remembers; this is the part of grounding that does not
+  what that run actually retrieved. A model that has read three documents can
+  still cite a fourth it remembers; this is the part of grounding that does not
   depend on the model cooperating.
 - What the corpus does not cover is said plainly, with nothing cited.
 
@@ -206,23 +227,59 @@ See [Agent](docs/agent.md).
 
 ## Judging the answers
 
-Retrieval scores measure search. They do not measure whether the answer was any
-good, so two answer setups were compared over 70 questions, judged for whether
-they addressed the question and whether every claim appeared in the documents
-cited with it.
+Retrieval scores measure search. They say nothing about whether the answer was
+any good, so answers are judged too. A second model reads the question, the
+answer, and the documents cited with it, and rules on two things: whether the
+answer addresses the question, and whether every claim it makes appears in those
+documents. A third measure needs no model at all — whether search reached the
+labelled document in the first place.
 
-The setups differ in one thing: how many documents an answer is written from,
-five or three.
+The judge is `gpt-5.6-terra`, deliberately not the model that writes the answers,
+because a judge sharing the answerer's blind spots passes its own mistakes.
 
-**Every measure tied.** Which means three documents ships, because a tie goes to
-the simpler setup — and three cuts roughly **40% of the tokens** each answer
-costs, with no measurable loss in quality. Since answering is where nearly all of
-this project's running cost sits, that is the most valuable result in the
-document.
+Four changes came out of running this, each one visible before it was made.
 
-> **Not yet re-measured.** These numbers predate the question rewrite and the
-> verbatim-first-search change, both of which affect them. The comparison is
-> expected to hold and has to be re-run before it can be claimed.
+**Three documents per answer instead of five.** The two were compared over 70
+questions and every measure tied, so the cheaper setup won on the standing rule
+that a tie goes to the simpler one. Answering is where nearly all the running
+cost sits, and the smaller context is about a fifth fewer tokens per answer.
+
+**The first search stopped being a request.** The instructions asked for the
+question to be searched word for word, and a trace showed the model rewriting it
+anyway — six searches in one turn, five of them rewordings of each other, two
+returning identical documents. The verbatim search moved into code, where it is a
+guarantee rather than a suggestion, and the model's own searches were capped at
+two. A turn went from six searches to two, and from 55 seconds to 24.
+
+**A better answering model.** `gpt-5.6-luna` replaced `gpt-5.4-mini`. Published
+benchmarks already rank it higher, so it was adopted on those rather than
+re-measured here — the same reasoning that chose the embedding model. It is also
+about a third the price per token, which took the cost of an answer from $0.0026
+to $0.0006.
+
+**The instructions learned where to stop.** The judge records *why* it fails an
+answer, and reading a dozen of those showed one pattern: the model was not
+inventing episodes, it was adding connective tissue. Who forced the victim to
+drink, why the fake call worked, that Ruby is a demon — all true of the series,
+none of it in the cited document. One paragraph telling the model to answer at
+the level of detail the documents hold, and to stop where they stop, halved those
+failures.
+
+Then the held-out side, read once, on documents no tuning run ever touched:
+
+| measure | tuning | held-out |
+|---|---|---|
+| addresses the question | 1.000 | 0.988 |
+| every claim supported | 0.914 | 0.892 |
+| answering document retrieved | 0.986 | **1.000** |
+
+83 questions, and the gaps are small enough to say the tuning numbers were not
+flattered by the questions they were tuned on. Retrieval reached the right
+document every single time.
+
+Full tables: [`answer_scores.csv`](evaluation/results/answer_scores.csv) and
+[`answer_held_out.csv`](evaluation/results/answer_held_out.csv), with the judge's
+reasoning for every verdict beside them in the `_verdicts` files.
 
 See [Evaluation](docs/evaluation.md).
 
@@ -244,7 +301,18 @@ search. Pydantic AI already opens one for every tool call, covering the same
 work and the same duration, so a second span would have recorded the same thing
 twice. What instrumentation could not know — which search path ran, whether
 results were reranked, which documents came back — was added as attributes on the
-span that already existed.
+span that already existed. The one span the project does open is around the
+verbatim first search, which happens outside the agent where no instrumentation
+can see it.
+
+**The traces became a working tool.** Logfire publishes an MCP server, and
+connecting it let the coding agent query spans directly while building rather
+than reading a dashboard afterwards. Everything in the section above came out of
+that: the six-search turn was found in a trace, a search that looked
+catastrophically slow turned out to be one stalled query rather than the
+reranker, and every cost figure in this document was read from the spans instead
+of estimated. It is also how the judge's reasoning was reviewed before it was
+written to a file.
 
 Thumbs feedback is recorded through Logfire's annotations, so a rating attaches
 to the run it judges instead of landing in a separate table with no way back to
@@ -272,8 +340,11 @@ can be printed by something that did not expect to hold one.
 
 - **Cloud deployment**, worth two points, is outside the delivery target.
 - **A blended ranking** that let fusion keep a vote after reranking was designed
-  and not built, because upgrading the cross-encoder fixed the problem it was
-  meant to work around.
+  and not built, for the reason given above: the deeper cross-encoder fixed the
+  seven demoted questions it was meant to rescue.
+- **Optuna** and a **chunked-versus-unsplit comparison** were both dropped before
+  running, each because the parameter it would have searched turned out to be
+  settled by something other than these questions.
 - **Skipping documents already retrieved** within a turn was considered and
   rejected: a second search is usually a refinement, so hiding the best match
   would hand the model worse results while saving little.

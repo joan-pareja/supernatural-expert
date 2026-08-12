@@ -16,13 +16,15 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 from random import Random
+from typing import Iterable
 
 from supernatural_expert.config import REPOSITORY_ROOT
 
 EVALUATION_DIR = REPOSITORY_ROOT / "evaluation"
 GROUND_TRUTH_FILE = EVALUATION_DIR / "ground_truth.csv"
 HELD_OUT_FILE = EVALUATION_DIR / "held_out.csv"
-ANSWER_SUBSET_FILE = EVALUATION_DIR / "answer_subset.csv"
+ANSWER_SUBSET_A_FILE = EVALUATION_DIR / "answer_subset_a.csv"
+ANSWER_SUBSET_B_FILE = EVALUATION_DIR / "answer_subset_b.csv"
 RESULTS_DIR = EVALUATION_DIR / "results"
 
 # A fifth of the documents. Large enough that the held-out score is not decided
@@ -37,7 +39,11 @@ HELD_OUT_SEED = 2026
 # and two judge calls per question per setup, so it reads a subset where
 # retrieval scoring reads everything.
 ANSWER_SUBSET_SIZE = 70
-ANSWER_SUBSET_SEED = 2027
+ANSWER_SUBSET_A_SEED = 2027
+
+# A second sample of the same size, drawn from the tuning questions the first one
+# left, so a setup can be read on questions no earlier answer run saw.
+ANSWER_SUBSET_B_SEED = 2028
 
 
 class GroundTruthError(RuntimeError):
@@ -98,35 +104,41 @@ def choose_held_out(
 def choose_answer_subset(
     tuning: list[Question],
     size: int = ANSWER_SUBSET_SIZE,
-    seed: int = ANSWER_SUBSET_SEED,
+    seed: int = ANSWER_SUBSET_A_SEED,
+    exclude: Iterable[Question] = (),
 ) -> list[Question]:
-    """Pick the questions answer setups are compared over.
+    """Pick the questions an answer setup is read over.
 
     Drawn from the tuning side alone, so the held-out documents stay unread until
     the single final pass, and stratified by document kind for the reason the
     held-out split is: six season introductions are easy to miss entirely.
 
-    Questions rather than documents. Two answer setups differ in how much context
-    one answer is written from, and nothing carries between questions, so a
-    document appearing twice cannot leak the way it would in a retrieval split.
+    Questions rather than documents. A setup is read on what it answered, and
+    nothing carries between questions, so a document appearing twice cannot leak
+    the way it would in a retrieval split.
+
+    `exclude` removes questions an earlier sample already spent, which is what
+    makes a second sample a fresh read rather than the same one again.
     """
-    if size > len(tuning):
+    spent = set(exclude)
+    pool = [question for question in tuning if question not in spent]
+    if size > len(pool):
         raise GroundTruthError(
-            f"Asked for {size} questions, but the tuning side holds {len(tuning)}."
+            f"Asked for {size} questions, but {len(pool)} are left to draw from."
         )
     kinds = (
-        [q for q in tuning if is_season_introduction(q.document_id)],
-        [q for q in tuning if not is_season_introduction(q.document_id)],
+        [q for q in pool if is_season_introduction(q.document_id)],
+        [q for q in pool if not is_season_introduction(q.document_id)],
     )
     generator = Random(seed)
     chosen: list[Question] = []
     for kind in kinds:
-        chosen.extend(generator.sample(kind, round(size * len(kind) / len(tuning))))
+        chosen.extend(generator.sample(kind, round(size * len(kind) / len(pool))))
     return sorted(chosen, key=lambda question: (question.document_id, question.text))
 
 
 def write_answer_subset(
-    questions: list[Question], path: Path = ANSWER_SUBSET_FILE
+    questions: list[Question], path: Path = ANSWER_SUBSET_A_FILE
 ) -> None:
     """Write the judged subset in the shape the ground truth already uses."""
     with path.open("w", encoding="utf-8", newline="") as handle:
@@ -137,8 +149,8 @@ def write_answer_subset(
         )
 
 
-def load_answer_subset(path: Path = ANSWER_SUBSET_FILE) -> list[Question]:
-    """Read the committed subset, so both setups answer the same questions."""
+def load_answer_subset(path: Path = ANSWER_SUBSET_A_FILE) -> list[Question]:
+    """Read a committed sample, so a rerun reads the questions the last one did."""
     if not path.is_file():
         raise GroundTruthError(
             f"{path} does not exist. "
@@ -181,14 +193,17 @@ def main() -> int:
     write_held_out(held_out_ids, HELD_OUT_FILE)
     tuning, held_out = split(questions, set(held_out_ids))
     subset = choose_answer_subset(tuning)
-    write_answer_subset(subset, ANSWER_SUBSET_FILE)
+    write_answer_subset(subset, ANSWER_SUBSET_A_FILE)
+    second = choose_answer_subset(tuning, seed=ANSWER_SUBSET_B_SEED, exclude=subset)
+    write_answer_subset(second, ANSWER_SUBSET_B_FILE)
     print(
         f"Held out {len(held_out_ids)} of "
         f"{len({q.document_id for q in questions})} documents "
         f"({len(held_out)} questions), leaving {len(tuning)} for tuning."
     )
     print(f"Wrote {HELD_OUT_FILE}.")
-    print(f"Wrote {ANSWER_SUBSET_FILE} with {len(subset)} judged questions.")
+    print(f"Wrote {ANSWER_SUBSET_A_FILE} with {len(subset)} judged questions.")
+    print(f"Wrote {ANSWER_SUBSET_B_FILE} with {len(second)} judged questions.")
     return 0
 
 
