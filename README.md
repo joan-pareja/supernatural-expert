@@ -1,119 +1,155 @@
 # Supernatural Expert
 
-Ask spoiler-safe questions about *Supernatural* seasons 1 through 6. The app will
-retrieve episode facts from a fixed English Wikipedia corpus, then use an LLM to
-answer with source links.
+Ask questions about *Supernatural* seasons 1 to 6 and get an answer built from
+Wikipedia, with the episodes it came from listed underneath. It will not tell you
+anything past season 6, and it says so plainly when the corpus does not hold the
+answer.
 
-> Keep this file as the short entry point for people who want to understand,
-> run, or review the project.
+> The short entry point. [Journey](JOURNEY.md) is the long one, and the file to
+> read if you read only one.
 
-## Why this project is narrow
+## Try it
 
-The first idea was a configurable movie-and-TV expert. That would spend too much
-of a two-week project choosing and loading a new corpus at runtime. A fixed
-*Supernatural* expert keeps the hard work on retrieval, evaluation, monitoring,
-and reproducibility.
+You need Docker and an OpenAI API key. Nothing else: no Python to install, no
+database to set up, no model files to fetch by hand.
+
+```powershell
+git clone https://github.com/joan-pareja/supernatural-expert
+cd supernatural-expert
+Copy-Item .env.example .env
+```
+
+Open `.env` and put your key on the `OPENAI_API_KEY=` line. Everything else in
+that file already works, so leave it alone. Then start the whole thing:
+
+```powershell
+docker compose up
+```
+
+When the log says the app is running, open <http://127.0.0.1:8501>.
+
+![The chat answering a question, with its source](docs/images/chat__question-and-citation.png)
+
+### How long it takes
+
+The first run does the slow work once and never again:
+
+| | First run | Every run after |
+|---|---|---|
+| Downloading the base images | a few minutes, on your connection | skipped |
+| Building the image | about 1½ minutes | skipped |
+| Loading and indexing 132 documents | about 30 seconds | skipped |
+| Starting the chat | seconds | seconds |
+
+The two middle rows were measured on the maintainer's laptop. The download is the
+part that varies, and it is the larger cost: PostgreSQL is a 1.4 GB image, and
+the app image builds out to 3.2 GB once the Python dependencies and the two
+models are in it. How long the setup takes depends on your machine and internet
+connection.
+
+Nothing in between needs you. The database starts, the app waits until it is
+really answering, fetches the corpus from pinned Wikipedia revisions, builds the
+search index, and serves the page. Later starts count two tables, find the work
+already done, and go straight to the chat.
+
+`docker compose down` stops everything. Add `-v` only if you want the corpus
+deleted and loaded again next time.
+
+### What it costs
+
+Answering a question calls OpenAI, which costs money. Measured over the 223
+questions behind the latest evaluation results, one costs under a tenth of a US
+cent — roughly fifteen questions to the cent. A long conversation costs more per
+answer than that, because each turn sends the ones before it again.
+
+Nothing else costs anything. The two Logfire lines in `.env` can stay empty, and
+the app then runs and sends no telemetry. Filling in a write token from a free
+Logfire project turns the traces, cost figures, and dashboard on instead;
+[Monitoring](docs/monitoring.md) gives the five steps.
+
+## Read the Journey while it builds
+
+**[Journey](JOURNEY.md)** is how this was built: what was tried, what it was
+measured against, what the numbers said, and what got thrown away afterwards. It
+is meant to be read start to finish, and it covers every part the course rubric
+scores.
+
+[Rubric](docs/rubric.md) is the checklist version — each criterion and where its
+evidence lives — tracking the official
+[LLM Zoomcamp project rubric](https://github.com/DataTalksClub/llm-zoomcamp/blob/main/project.md).
 
 ## What it does
 
-- Chat through Streamlit.
-- Search episode information with PostgreSQL text and vector search.
-- Combine both result lists with reciprocal rank fusion (RRF), then reorder them
-  with a cross-encoder that scores each result against the question.
-- Answer with `gpt-5.6-luna` through Pydantic AI, citing the documents used.
-- Refuse spoilers beyond Season 6 and answers unsupported by the corpus.
-- Collect thumbs-up and thumbs-down feedback.
-- Send every run, judge result, and rating to one Logfire project.
+- A chat page that answers one question at a time and shows the sources under
+  every answer.
+- Two kinds of search over the corpus at once: one matching words, one matching
+  meaning. Their results are merged, then reordered by a model that reads each
+  result against the question.
+- Answers written by `gpt-5.6-luna` through Pydantic AI, citing the documents
+  they rest on, refusing spoilers past season 6, and saying so rather than
+  guessing when the corpus does not cover the question.
+- A thumbs up or down on every answer.
+- Traces, token usage, cost, judge verdicts, and ratings in one Logfire project,
+  with a six-chart dashboard reading them in place.
 
-All of the above runs today. The monitoring charts over that Logfire data are the
-piece still being built.
-
-The corpus is loaded from the Wikipedia Action API by a repeatable dlt pipeline.
-No web pages, raw API archives, or DuckDB landing database are part of the
-runtime design. See [Corpus](docs/corpus.md), [Ingestion](docs/ingestion.md), and
+The knowledge base is 132 documents covering every episode of seasons 1 to 6,
+loaded from the Wikipedia API by a repeatable dlt pipeline. It is fixed rather
+than configurable on purpose: a two-week project spends its time better on
+retrieval, evaluation, and monitoring than on loading an arbitrary corpus at
+runtime. See [Corpus](docs/corpus.md), [Ingestion](docs/ingestion.md), and
 [Architecture](ARCHITECTURE.md).
 
-## Course rubric
+## Working on the code
 
-The plan covers all nine two-point project sections: problem, retrieval, two
-forms of evaluation, interface, ingestion, monitoring, containerization, and
-reproducibility. Hybrid search, a cross-encoder reranker, and the agent's own
-query rewriting are each measured against the ground truth and kept, which takes
-three best-practice points. Cloud deployment is declined, for reasons the linked
-documents give.
-
-**Start with [Journey](JOURNEY.md)** for what was built, what it was measured
-against, and what each decision was worth. The exact checklist and evidence
-locations live in [Rubric](docs/rubric.md), which tracks the official
-[LLM Zoomcamp project rubric](https://github.com/DataTalksClub/llm-zoomcamp/blob/main/project.md).
-
-## Running the project
-
-**The goal is one command and one secret: `docker compose up` with an
-`OPENAI_API_KEY`.** Nothing else should be a prerequisite. The embedding model is
-baked into the image rather than fetched by the reviewer, the corpus loads
-itself, and every other credential is optional. Steps that do not yet meet that
-bar are being worked toward it, not around it.
-
-The application is not built yet, but the database it will use already runs
-locally, and contributors work against the host rather than the image. From the
-repository root on Windows:
+Contributors run the code on the host and keep only the database in Docker, which
+is faster to iterate on than rebuilding an image:
 
 ```powershell
 .\scripts\setup-dev.ps1
-docker compose up -d --wait
+docker compose up -d --wait db
+uv run python -m supernatural_expert.bootstrap
+uv run streamlit run src/supernatural_expert/chat/app.py
 ```
 
 `setup-dev.ps1` creates `.env` from `.env.example`, installs the locked
 dependencies with `uv`, downloads the pinned ONNX models into `models/`, and
 links the shared agent skills. Every step keeps what is already there, so the
-script is safe to rerun. Stop the database with `docker compose down`; adding
-`-v` also deletes its data.
+script is safe to rerun. `bootstrap` is the same step the container runs: it
+loads the corpus and builds the index unless the database already holds them.
 
-Two models are fetched rather than committed: the 128 MB encoder that indexes and
-searches, and the 91 MB cross-encoder that reorders what search returns. Running
-`uv run python -m supernatural_expert.embedding` and `uv run python -m
-supernatural_expert.reranking` again is how you restore them.
-
-**`OPENAI_API_KEY` is the only value you must supply.** Everything else in
-`.env.example` already works. The two Logfire tokens are optional: without them
-the app runs and sends no telemetry, and with them it sends to your own Logfire
-project so you can reproduce the monitoring views. See
-[Monitoring](docs/monitoring.md).
-
-Then load the corpus. The dry run fetches and parses everything without touching
-PostgreSQL, writing one JSON file per season to `data/corpus/` so the result can
-be read first:
+Ingestion also runs on its own, and its dry run fetches and parses everything
+without touching PostgreSQL, writing one JSON file per season to `data/corpus/`
+so the result can be read first:
 
 ```powershell
 uv run python -m supernatural_expert.ingestion --dry-run
 uv run python -m supernatural_expert.ingestion
 ```
 
-A run produces 132 corpus documents across seasons 1 through 6, and fails
-rather than loading a partial corpus.
+A run produces 132 corpus documents across seasons 1 through 6, and fails rather
+than loading a partial corpus.
 
-The final local setup will use Docker Compose for the app and PostgreSQL. Docker
-will provide all software dependencies. OpenAI usage may cost money; the Logfire
-free tier does not.
-
-Private Logfire access is not part of the handoff. The charts are drawn in
-Logfire over the spans the app already sends, so the repository carries the
-dashboard definition and screenshots, and the steps to point your own Logfire
-project at the app and watch it fill up.
+The checks that must pass: `uv run ruff check .`, `uv run ruff format .`,
+`uv run pyright`, and `uv run pytest -q`. See
+[Development](docs/development.md).
 
 ## Documentation map
 
-- [Journey](JOURNEY.md): how the project got here, and what each turn was worth.
+Start with [Journey](JOURNEY.md). These are what it links into.
+
 - [Scope](docs/scope.md): the problem and the boundary of the first release.
+- [Architecture](ARCHITECTURE.md): the pieces and how they fit.
 - [Corpus](docs/corpus.md): what the knowledge base contains.
 - [Ingestion](docs/ingestion.md): how Wikipedia becomes corpus documents.
 - [Data model](docs/data-model.md): the few stored concepts.
-- [Retrieval](docs/retrieval.md): search and chunking decisions.
-- [Evaluation](docs/evaluation.md): offline and online quality checks.
-- [Monitoring](docs/monitoring.md): Logfire events and dashboard charts.
+- [Retrieval](docs/retrieval.md): search, chunking, and reranking decisions.
+- [Agent](docs/agent.md): how a question becomes an answer.
+- [Chat](docs/chat.md): the Streamlit page and its feedback control.
+- [Evaluation](docs/evaluation.md): how everything above was measured.
+- [Monitoring](docs/monitoring.md): Logfire events, feedback, and the dashboard.
+- [Rubric](docs/rubric.md): the course checklist and where each point is earned.
 - [Development](docs/development.md): tools, commits, and Markdown rules.
-- [Roadmap](ROADMAP.md): build order and open decisions.
+- [Roadmap](ROADMAP.md): build order.
 - [Context](CONTEXT.md): project-specific words.
 
 ## License

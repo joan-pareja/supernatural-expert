@@ -1,0 +1,29 @@
+# The build context is the repository root, and most of it has no business in
+# the image. Secrets first: .env is mounted at run time, never copied in.
+.env
+.env.*
+!.env.example
+
+.git/
+.venv/
+.cache/
+
+# Downloaded during the build from a pinned revision, so a stale local copy must
+# not travel with the context.
+models/
+
+# PostgreSQL is the source of truth for the corpus; this is only exported JSON.
+data/
+
+# Development-only, and none of it runs in the image.
+.agents/
+.claude/
+.codex/
+docs/
+evaluation/
+monitoring/
+scripts/
+tests/
+
+**/__pycache__/
+*.pyc

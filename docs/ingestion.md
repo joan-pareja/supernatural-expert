@@ -3,7 +3,7 @@ type: reference
 title: Ingestion
 description: Defines the repeatable dlt flow from Wikipedia to PostgreSQL.
 status: approved
-modified: 2026-07-27T00:22:00+02:00
+modified: 2026-08-13T17:01:00+02:00
 tags:
 - ingestion
 - dlt
@@ -108,8 +108,9 @@ when an expected season or episode cannot be validated.
 
 The corpus is static for the project. Ingestion runs once during setup and again
 only by an explicit refresh command. Rerunning replaces the table rather than
-appending, so a refresh is safe to repeat. The course awards the automated dlt
-pipeline; it does not require a scheduler.
+appending, so a refresh is safe to repeat. Nothing schedules it, because the
+corpus is pinned to fixed revisions and does not drift; a timer would re-fetch
+the same six pages to produce the same rows.
 
 The [readme](../README.md) owns the exact commands, and `--help` on the module
 lists the dry-run, per-season, and export options.

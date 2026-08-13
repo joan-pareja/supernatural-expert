@@ -1,0 +1,300 @@
+{
+  "kind": "Dashboard",
+  "metadata": {
+    "name": "Supernatural Expert"
+  },
+  "spec": {
+    "display": {
+      "name": "Supernatural Expert",
+      "description": "Traffic, latency, cost, judge verdicts, and viewer feedback, read from the spans the app already sends."
+    },
+    "duration": "7d",
+    "refreshInterval": "0s",
+    "variables": [
+      {
+        "kind": "ListVariable",
+        "spec": {
+          "name": "resolution",
+          "display": {
+            "name": "Resolution"
+          },
+          "allowMultiple": false,
+          "allowAllValue": false,
+          "plugin": {
+            "kind": "TimeBucketVariable",
+            "spec": {}
+          }
+        }
+      }
+    ],
+    "panels": {
+      "questions-answered": {
+        "kind": "Panel",
+        "spec": {
+          "display": {
+            "name": "Questions answered",
+            "description": "Every agent run, and the subset of them a viewer asked in the chat."
+          },
+          "plugin": {
+            "kind": "TimeSeriesChart",
+            "spec": {
+              "legend": {
+                "position": "bottom"
+              }
+            }
+          },
+          "queries": [
+            {
+              "kind": "TimeSeriesQuery",
+              "spec": {
+                "plugin": {
+                  "kind": "LogfireTimeSeriesQuery",
+                  "spec": {
+                    "query": "SELECT time_bucket($resolution, start_timestamp) AS x, count(*) FILTER (WHERE span_name = 'invoke_agent supernatural-expert') AS agent_runs, count(*) FILTER (WHERE span_name = 'chat turn') AS chat_turns FROM records WHERE span_name IN ('invoke_agent supernatural-expert', 'chat turn') GROUP BY x ORDER BY x",
+                    "metrics": ["agent_runs", "chat_turns"]
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "answer-latency": {
+        "kind": "Panel",
+        "spec": {
+          "display": {
+            "name": "Latency",
+            "description": "How long a whole turn takes, against how much of it is one model call."
+          },
+          "plugin": {
+            "kind": "TimeSeriesChart",
+            "spec": {
+              "legend": {
+                "position": "bottom"
+              },
+              "yAxis": {
+                "unit": "seconds"
+              }
+            }
+          },
+          "queries": [
+            {
+              "kind": "TimeSeriesQuery",
+              "spec": {
+                "plugin": {
+                  "kind": "LogfireTimeSeriesQuery",
+                  "spec": {
+                    "query": "SELECT time_bucket($resolution, start_timestamp) AS x, approx_percentile_cont(duration, 0.5) FILTER (WHERE span_name = 'invoke_agent supernatural-expert') AS turn_p50, approx_percentile_cont(duration, 0.95) FILTER (WHERE span_name = 'invoke_agent supernatural-expert') AS turn_p95, approx_percentile_cont(duration, 0.5) FILTER (WHERE span_name LIKE 'chat gpt-%') AS model_p50 FROM records WHERE span_name = 'invoke_agent supernatural-expert' OR span_name LIKE 'chat gpt-%' GROUP BY x ORDER BY x",
+                    "metrics": ["turn_p50", "turn_p95", "model_p50"]
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "thumbs-feedback": {
+        "kind": "Panel",
+        "spec": {
+          "display": {
+            "name": "Viewer feedback",
+            "description": "Thumbs recorded under the chat turn they judge."
+          },
+          "plugin": {
+            "kind": "BarChart",
+            "spec": {}
+          },
+          "queries": [
+            {
+              "kind": "NonTimeSeriesQuery",
+              "spec": {
+                "plugin": {
+                  "kind": "LogfireNonTimeSeriesQuery",
+                  "spec": {
+                    "query": "SELECT CASE WHEN attributes->>'thumbs_up' = 'true' THEN 'Thumbs up' ELSE 'Thumbs down' END AS thumb, count(*) AS clicks FROM records WHERE attributes->>'logfire.feedback.name' = 'thumbs_up' GROUP BY thumb ORDER BY thumb",
+                    "metrics": ["clicks"],
+                    "groupBy": "thumb"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "judge-verdicts": {
+        "kind": "Panel",
+        "spec": {
+          "display": {
+            "name": "Judge verdicts",
+            "description": "Percentage of judged answers passing each measure. Relevant and supported are the model judge; retrieved is whether search reached the labelled document."
+          },
+          "plugin": {
+            "kind": "BarChart",
+            "spec": {}
+          },
+          "queries": [
+            {
+              "kind": "NonTimeSeriesQuery",
+              "spec": {
+                "plugin": {
+                  "kind": "LogfireNonTimeSeriesQuery",
+                  "spec": {
+                    "query": "SELECT measure, round(100.0 * sum(passed) / count(*), 1) AS pass_rate FROM (SELECT 'relevant' AS measure, CASE WHEN attributes->'assertions'->'relevant'->>'value' = 'true' THEN 1 ELSE 0 END AS passed FROM records WHERE span_name = 'case: {case_name}' UNION ALL SELECT 'supported', CASE WHEN attributes->'assertions'->'supported'->>'value' = 'true' THEN 1 ELSE 0 END FROM records WHERE span_name = 'case: {case_name}' UNION ALL SELECT 'retrieved', CASE WHEN attributes->'assertions'->'retrieved'->>'value' = 'true' THEN 1 ELSE 0 END FROM records WHERE span_name = 'case: {case_name}') GROUP BY measure ORDER BY measure",
+                    "metrics": ["pass_rate"],
+                    "groupBy": "measure"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "model-cost": {
+        "kind": "Panel",
+        "spec": {
+          "display": {
+            "name": "Model cost",
+            "description": "Dollars per bucket, split by model, from the cost Logfire puts on every model call."
+          },
+          "plugin": {
+            "kind": "TimeSeriesChart",
+            "spec": {
+              "legend": {
+                "position": "bottom"
+              }
+            }
+          },
+          "queries": [
+            {
+              "kind": "TimeSeriesQuery",
+              "spec": {
+                "plugin": {
+                  "kind": "LogfireTimeSeriesQuery",
+                  "spec": {
+                    "query": "SELECT time_bucket($resolution, start_timestamp) AS x, attributes->>'gen_ai.request.model' AS model, sum((attributes->>'operation.cost')::double) AS cost FROM records WHERE span_name LIKE 'chat %' AND attributes->>'operation.cost' IS NOT NULL GROUP BY x, model ORDER BY x",
+                    "metrics": ["cost"],
+                    "groupBy": "model"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "model-tokens": {
+        "kind": "Panel",
+        "spec": {
+          "display": {
+            "name": "Tokens and cost by model",
+            "description": "What each model was asked to read and write, and what that came to."
+          },
+          "plugin": {
+            "kind": "Table",
+            "spec": {}
+          },
+          "queries": [
+            {
+              "kind": "NonTimeSeriesQuery",
+              "spec": {
+                "plugin": {
+                  "kind": "LogfireNonTimeSeriesQuery",
+                  "spec": {
+                    "query": "SELECT attributes->>'gen_ai.request.model' AS model, count(*) AS calls, sum((attributes->>'gen_ai.usage.input_tokens')::double)::bigint AS input_tokens, sum((attributes->>'gen_ai.usage.output_tokens')::double)::bigint AS output_tokens, round(sum((attributes->>'operation.cost')::double), 4) AS cost FROM records WHERE span_name LIKE 'chat %' AND attributes->>'operation.cost' IS NOT NULL GROUP BY model ORDER BY cost DESC",
+                    "metrics": ["calls", "input_tokens", "output_tokens", "cost"],
+                    "groupBy": "model"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "layouts": [
+      {
+        "kind": "Grid",
+        "spec": {
+          "display": {
+            "title": "Traffic and latency"
+          },
+          "items": [
+            {
+              "x": 0,
+              "y": 0,
+              "width": 12,
+              "height": 8,
+              "content": {
+                "$ref": "#/spec/panels/questions-answered"
+              }
+            },
+            {
+              "x": 12,
+              "y": 0,
+              "width": 12,
+              "height": 8,
+              "content": {
+                "$ref": "#/spec/panels/answer-latency"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "kind": "Grid",
+        "spec": {
+          "display": {
+            "title": "Quality"
+          },
+          "items": [
+            {
+              "x": 0,
+              "y": 0,
+              "width": 12,
+              "height": 8,
+              "content": {
+                "$ref": "#/spec/panels/thumbs-feedback"
+              }
+            },
+            {
+              "x": 12,
+              "y": 0,
+              "width": 12,
+              "height": 8,
+              "content": {
+                "$ref": "#/spec/panels/judge-verdicts"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "kind": "Grid",
+        "spec": {
+          "display": {
+            "title": "Cost"
+          },
+          "items": [
+            {
+              "x": 0,
+              "y": 0,
+              "width": 14,
+              "height": 8,
+              "content": {
+                "$ref": "#/spec/panels/model-cost"
+              }
+            },
+            {
+              "x": 14,
+              "y": 0,
+              "width": 10,
+              "height": 8,
+              "content": {
+                "$ref": "#/spec/panels/model-tokens"
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

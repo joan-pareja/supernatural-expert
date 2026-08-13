@@ -3,7 +3,7 @@ type: reference
 title: Retrieval
 description: Defines the search baseline and evaluation-driven choices.
 status: approved
-modified: 2026-08-11T01:33:00+02:00
+modified: 2026-08-13T17:01:00+02:00
 tags:
 - retrieval
 - hybrid-search
@@ -92,12 +92,17 @@ packs neighbours back together while there is room, and returns anything already
 short enough untouched. Size is a ceiling rather than a target, and the ceiling
 comes from the model's own window, so nothing here is fitted to this corpus.
 
-Document length is uneven, and aggregation accounts for it. Standalone plots
-run several times longer than season table summaries, while season introductions
-sit near the summaries. A fixed-size split therefore gives the twelve plot-backed
-episodes many more units than the rest, and more units means more chances to
-match for reasons unrelated to relevance. Scores are aggregated per document so
-that a split document competes as one result.
+Document length is uneven, and aggregation accounts for it. The twelve episodes
+carrying a standalone plot average about 3,300 characters, the 114 summarised in
+a season table about 950, and the six season introductions about 1,400. Every one
+of them is a compact, informative document; the spread is a matter of how much
+Wikipedia records about an episode, not of some being unwieldy.
+
+That spread is still enough to matter once documents are split. The twelve plots
+yield 48 of the 180 search units while the 114 summaries yield 123, so a plot has
+several pieces competing where a summary has one, and more pieces means more
+chances to match for reasons unrelated to relevance. Scores are therefore
+aggregated per document, so a split document competes as one result.
 
 Ranking and answering therefore work at different sizes. A piece is what earns a
 document its place in the results; the agent is then given that document's whole
@@ -135,8 +140,7 @@ as one that occurs in five. It retrieved 8 of 426 ground truth questions where
 BM25 retrieves 400. The measurements are kept with the evaluation artifacts.
 
 RRF is rank fusion: it combines the positions a document took in the lexical and
-vector lists. It never looks at the query again, which is why it is not
-reranking and does not earn the rubric's separate point for it.
+vector lists, and never looks at the query again.
 
 Reranking is a second stage over the first stage's output. Search casts a wide
 net and returns its best twenty to fifty units, and a cross-encoder then reads

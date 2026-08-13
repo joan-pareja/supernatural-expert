@@ -3,7 +3,7 @@ type: reference
 title: Monitoring
 description: Defines Logfire as the single telemetry and feedback source.
 status: approved
-modified: 2026-08-12T11:21:00+02:00
+modified: 2026-08-13T17:01:00+02:00
 tags:
 - monitoring
 - logfire
@@ -85,17 +85,22 @@ monitoring views and nothing else.
 
 ## Reporting
 
-Five charts are required, whoever draws them:
+The dashboard is `Supernatural Expert`, and `monitoring/dashboard.json` is the
+definition it was created from. Six panels:
 
-1. Requests over time.
-2. Positive and negative feedback.
-3. Answer relevance from the live judge.
-4. End-to-end and model latency.
-5. Token use and estimated model cost.
+1. Questions answered over time, every agent run against the chat turns among
+   them.
+2. Turn and model latency, at the median and the 95th percentile, which is what
+   separates a slow system from a slow model inside it.
+3. Thumbs up against thumbs down.
+4. Judge verdicts, as the share of judged answers passing each measure.
+5. Model cost over time, split by model.
+6. Tokens and cost per model, as a table.
 
-Errors or spoiler refusals may be a sixth view. The final README should include
-a dashboard screenshot so peer reviewers can see the evidence even without the
-project's private Logfire access.
+The judge panel reads the evaluation runs rather than the chat. Judging is an
+offline measurement and nothing grades a live answer, so what a viewer sends is
+read through the thumb beside it. Both land in the same project, which is what
+lets one dashboard show them together.
 
 They are drawn in Logfire. Every one of these views reads spans the app already
 sends, so a dashboard there is a view over data in place, where a Streamlit
@@ -106,6 +111,13 @@ custom chart inside Logfire rather than outside it.
 The chat therefore has no reporting page, and the running application needs no
 read credential.
 
+These are the panels populated, so a peer reviewer sees the evidence without the
+project's private Logfire access.
+
+![Traffic and latency](images/dashboard__traffic-and-latency.png)
+
+![Quality and cost](images/dashboard__quality-and-cost.png)
+
 Reading the traces while building is a separate matter from serving them. Logfire
 publishes an MCP server, and connecting it lets a coding agent query spans
 directly instead of reading a dashboard after the fact: a turn that spent six
@@ -115,6 +127,28 @@ reranker, and every cost figure in [Journey](../JOURNEY.md) was read from spans
 rather than estimated. That read token belongs to whoever is developing, lives in
 their shell, and never enters the repository or the application's settings.
 
+## Seeing it on your own project
+
+Telemetry is off until a write token is set, so the views above are empty for
+anyone who has not connected a project of their own. Five steps connect one:
+
+1. Create a free project at [logfire.pydantic.dev](https://logfire.pydantic.dev).
+2. In its settings, create a **write token** and copy it.
+3. Put it in `.env` as `LOGFIRE_WRITE_TOKEN=`, leaving `LOGFIRE_READ_TOKEN`
+   empty; the application never reads that one.
+4. Restart the app with `docker compose up -d --force-recreate app`, so the
+   container rebuilds the settings file it reads at start.
+5. Ask the chat a question and rate the answer. The trace appears within
+   seconds, carrying the agent run, both searches, token usage, and cost, with
+   the thumb attached to the turn it judges.
+
+The charts come from `monitoring/dashboard.json`, the definition the maintainer's
+own dashboard was created from. It carries each panel's SQL, so the six are
+rebuilt in a new project either by sending the file to Logfire's dashboard API or
+by pasting the queries into custom charts one at a time. Every panel reads spans
+the app has by then already sent, so they fill from that first question onward
+rather than needing anything further turned on.
+
 ## Reviewer evidence
 
 The rubric requires collected feedback and a dashboard with at least five
@@ -122,7 +156,7 @@ charts. It does not require access to the author's hosted monitoring account.
 The submitted repository will provide:
 
 - the feedback and telemetry code;
-- the five charts, as a Logfire dashboard definition;
+- the six charts, as the Logfire dashboard definition in `monitoring/`;
 - screenshots of the populated dashboard;
 - steps for a reviewer to connect their own Logfire project and create fresh
   events.

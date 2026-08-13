@@ -3,8 +3,7 @@
   "permissions": {
     "allow": [
       "Bash(docker compose *)",
-      "Bash(uv sync *)",
-      "Bash(tee \"C:/Users/JOANPA~1/AppData/Local/Temp/claude/c--Users-JoanPareja-Git-supernatural-expert/410f3f8b-6116-4b55-906b-03ea504a2538/scratchpad/answers-run.log\")"
+      "Bash(uv sync *)"
     ],
     "deny": [
       "Read(./.env)",

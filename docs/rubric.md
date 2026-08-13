@@ -3,7 +3,7 @@ type: reference
 title: Course rubric
 description: Maps the LLM Zoomcamp project rubric to planned evidence.
 status: approved
-modified: 2026-08-12T11:21:00+02:00
+modified: 2026-08-12T20:08:00+02:00
 tags:
 - rubric
 - course
@@ -31,8 +31,8 @@ Source: [LLM Zoomcamp project documentation](https://github.com/DataTalksClub/ll
 | LLM evaluation | 2 | Answers judged for relevance and support, four changes adopted on what it showed, and the result confirmed on 83 held-out questions. See [Evaluation](evaluation.md). |
 | Interface | 2 | The Streamlit chat. A UI is the whole criterion; reporting is not part of it. |
 | Ingestion pipeline | 2 | Automated dlt pipeline from the Wikipedia API. |
-| Monitoring | 2 | Thumbs feedback in the chat, and a dashboard of five charts with screenshots. Where it is drawn is [Monitoring](monitoring.md)'s to settle. |
-| Containerization | 2 | App and PostgreSQL run through Docker Compose. |
+| Monitoring | 2 | Thumbs feedback in the chat, and a Logfire dashboard of six charts committed as `monitoring/dashboard.json`. See [Monitoring](monitoring.md). |
+| Containerization | 2 | The chat and PostgreSQL both run through Docker Compose, and `docker compose up` is the whole of the setup. See [README](../README.md). |
 | Reproducibility | 2 | Public data, pinned dependencies, and tested run steps. |
 
 Base target: **18/18**.

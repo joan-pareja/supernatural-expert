@@ -35,6 +35,28 @@ services:
       retries: 10
       start_period: 10s
 
+  app:
+    # The chat, the agent, the search index, and the two ONNX models. See
+    # docker/Dockerfile for what is baked in and why.
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: supernatural-expert-app
+    restart: unless-stopped
+    depends_on:
+      db:
+        # The first start loads the corpus, so the database has to be answering
+        # queries and not merely running.
+        condition: service_healthy
+    ports:
+      # Loopback for the same reason the database is: this is a local
+      # application, and nothing here expects a visitor from the network.
+      - "127.0.0.1:${STREAMLIT_HOST_PORT:-8501}:8501"
+    volumes:
+      # Settings, read-only. The container composes its own copy at start rather
+      # than writing here, because the database is not where a host sees it.
+      - ./.env:/app/host.env:ro
+
 volumes:
   pgdata:
     name: supernatural-expert-pgdata

@@ -3,7 +3,7 @@ type: reference
 title: Evaluation
 description: Defines the small offline and online checks used to choose the app defaults.
 status: approved
-modified: 2026-08-12T11:21:00+02:00
+modified: 2026-08-12T18:28:00+02:00
 tags:
 - evaluation
 - quality
@@ -225,7 +225,10 @@ its own mistakes.
 
 ## Online evaluation
 
-The Streamlit chat records thumbs-up and thumbs-down feedback. Live answer-judge
-results and feedback go to Logfire and appear in reporting. Offline experiments
-remain reproducible project artifacts; live signals show how the chosen setup
-behaves after it is wired into the app.
+The Streamlit chat records thumbs-up and thumbs-down feedback, and that is the
+whole of the live signal. No model grades an answer as it is served: a judge on
+every turn would double what the chat costs to measure what the offline runs
+already measure. The thumb goes to Logfire and appears on the dashboard beside
+the offline verdicts, as [Monitoring](monitoring.md) describes. Offline
+experiments stay reproducible project artifacts; the thumb is what says how the
+chosen setup reads to someone using it.

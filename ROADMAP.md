@@ -3,7 +3,7 @@ type: reference
 title: Roadmap
 description: Orders the two-week build.
 status: approved
-modified: 2026-08-12T11:21:00+02:00
+modified: 2026-08-12T18:29:00+02:00
 tags:
 - roadmap
 - planning
@@ -16,7 +16,7 @@ related:
 
 > Keep this as a short build order. Move settled design into its owning document.
 
-Steps 1 through 3 are built, and step 4 is built apart from the charts.
+Steps 1 through 4 are built, and step 5 is where the work now is.
 [Journey](JOURNEY.md) is where what landed and what it was worth is recorded;
 this note stays the order, not the status.
 
@@ -51,6 +51,8 @@ this note stays the order, not the status.
 
 ## 5. Delivery
 
+- Put the chat itself in Docker Compose, so the whole system starts with one
+  command rather than the database alone.
 - Test the clean Docker Compose flow on Windows.
 - Add dashboard screenshots, example questions, results, and exact run commands.
 - Pin dependency versions and prepare the public repository for peer review.

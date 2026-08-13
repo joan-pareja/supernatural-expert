@@ -3,7 +3,7 @@ type: reference
 title: Architecture
 description: Shows how ingestion, answering, evaluation, and monitoring fit together.
 status: approved
-modified: 2026-08-12T11:21:00+02:00
+modified: 2026-08-12T20:08:00+02:00
 tags:
 - architecture
 - rag
@@ -63,11 +63,16 @@ flowchart LR
 - A cross-encoder reranks the candidates hybrid search returns, on the same CPU
   and ONNX Runtime as the encoder. It scores query and passage together, which
   neither embedding nor RRF does. See [Retrieval](docs/retrieval.md).
-- Streamlit owns chat, feedback controls, and reporting views. See
-  [Chat](docs/chat.md).
+- Streamlit owns the chat and its feedback controls. See [Chat](docs/chat.md).
 
-Docker Compose will run the application and PostgreSQL with a named database
-volume. Wikipedia, OpenAI, and Logfire remain external APIs.
+Docker Compose runs the application and PostgreSQL with a named database volume,
+so one command starts the whole system. The image carries the pinned ONNX models,
+and the container loads the corpus and builds the index on its first start
+through `supernatural_expert.bootstrap`, which skips both once the database holds
+them. Settings reach the container as a mounted file rather than as process
+environment, because the application reads a file and never `os.environ`, which
+is what keeps a library from picking a secret up on its own. Wikipedia, OpenAI,
+and Logfire remain external APIs.
 
 ## Quality flow
 
