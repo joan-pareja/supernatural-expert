@@ -3,7 +3,7 @@ type: reference
 title: Roadmap
 description: Orders the two-week build.
 status: approved
-modified: 2026-08-12T18:29:00+02:00
+modified: 2026-08-16T19:03:11+02:00
 tags:
 - roadmap
 - planning
@@ -56,3 +56,5 @@ this note stays the order, not the status.
 - Test the clean Docker Compose flow on Windows.
 - Add dashboard screenshots, example questions, results, and exact run commands.
 - Pin dependency versions and prepare the public repository for peer review.
+- Run the same Compose stack on a cloud virtual machine, reached over HTTPS at a
+  public hostname.

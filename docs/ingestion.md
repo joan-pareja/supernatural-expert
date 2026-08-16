@@ -3,7 +3,7 @@ type: reference
 title: Ingestion
 description: Defines the repeatable dlt flow from Wikipedia to PostgreSQL.
 status: approved
-modified: 2026-08-13T17:01:00+02:00
+modified: 2026-08-16T23:04:38+02:00
 tags:
 - ingestion
 - dlt
@@ -112,8 +112,8 @@ appending, so a refresh is safe to repeat. Nothing schedules it, because the
 corpus is pinned to fixed revisions and does not drift; a timer would re-fetch
 the same six pages to produce the same rows.
 
-The [readme](../README.md) owns the exact commands, and `--help` on the module
-lists the dry-run, per-season, and export options.
+The [agent guide](../AGENTS.md) owns the exact commands, and `--help` on the
+module lists the dry-run, per-season, and export options.
 
 References: [MediaWiki parse API](https://www.mediawiki.org/wiki/API:Parsing_wikitext)
 and [dlt PostgreSQL destination](https://dlthub.com/docs/dlt-ecosystem/destinations/postgres).

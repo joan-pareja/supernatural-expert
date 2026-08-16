@@ -3,13 +3,14 @@ type: reference
 title: Project scope
 description: Defines the problem, audience, and first-release boundary.
 status: approved
-modified: 2026-07-27T00:22:00+02:00
+modified: 2026-08-15T00:00:47+02:00
 tags:
 - scope
 - product
 related:
 - ../README.md
 - ./corpus.md
+- ./deployment.md
 ---
 
 # Project scope
@@ -36,8 +37,9 @@ The agent must stay inside the spoiler boundary, rely on retrieved evidence, and
 say when the corpus cannot support an answer.
 
 The project is a two-week course delivery. It favors a clear working path over
-production machinery. Local Docker Compose is the delivery target; cloud
-deployment is not part of it.
+production machinery. Local Docker Compose is the delivery target, and a hosted
+instance runs that same stack unchanged rather than a second one built for it.
+[Deployment](deployment.md) owns where it runs and how it is reached.
 
 ## Success
 

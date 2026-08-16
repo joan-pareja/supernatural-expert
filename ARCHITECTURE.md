@@ -3,7 +3,7 @@ type: reference
 title: Architecture
 description: Shows how ingestion, answering, evaluation, and monitoring fit together.
 status: approved
-modified: 2026-08-12T20:08:00+02:00
+modified: 2026-08-16T19:02:34+02:00
 tags:
 - architecture
 - rag
@@ -82,5 +82,9 @@ timings, usage, errors, and feedback go to Logfire, where the charts read them i
 place. See [Evaluation](docs/evaluation.md) and [Roadmap](ROADMAP.md) for the
 order this happens in.
 
-There is no cloud deployment, scheduled ingestion service, DuckDB layer, or
-migration framework in the first release.
+The same Compose stack also runs hosted, behind a reverse proxy that terminates
+TLS on the machine and reaches the chat over the loopback;
+[Deployment](docs/deployment.md) owns it.
+
+There is no scheduled ingestion service, DuckDB layer, or migration framework in
+the first release.

@@ -3,7 +3,7 @@ type: reference
 title: Journey
 description: How the project reached its current shape, and what each turn was worth.
 status: approved
-modified: 2026-08-13T17:01:00+02:00
+modified: 2026-08-16T19:02:34+02:00
 tags:
 - journey
 - decisions
@@ -390,7 +390,32 @@ work is already done, does it if not, and skips it if so. That was tested rather
 than assumed: from an empty database, 132 documents fetched, 180 units indexed,
 and the page serving about thirty seconds after PostgreSQL came up.
 
-## Not done
+## Running it in the cloud
 
-- **Cloud deployment**, worth two points, is outside the target for a two-week
-  build.
+The database decided where this could go. `pg_search` is a ParadeDB extension,
+and no managed PostgreSQL offers it: not Neon, not Supabase, not RDS. Every free
+tier built around a managed database was ruled out before it was considered, and
+what remained was hosts that run the project's own containers.
+
+Free tiers then failed on memory. A cross-encoder reranks on CPU beside
+PostgreSQL and Streamlit, which together want more than 2 GB, and the 1 GB
+instances AWS and Google give away cannot hold all three. Oracle's Ampere A1 is
+the only free shape that clears the bar, at 4 ARM cores and 24 GB. It is also
+contended enough that creation failed with an out-of-capacity error every time it
+was asked, so the instance actually serving is an AMD one paid from trial
+credits: larger than the work needs, and carrying an expiry the free shape would
+not have.
+
+**Nothing about the application changed to be hosted.** The same `compose.yaml`
+runs, and the binding that made it work was already there. Both services publish
+to `127.0.0.1`, chosen so that a laptop would not expose a database to the café
+wifi, and on a server that is exactly what a reverse proxy wants: Caddy reaches
+the chat over the loopback, and the containers stay unreachable from outside.
+Caddy obtains its own certificate, so a public HTTPS address cost a two-line
+configuration file and a free DuckDNS name.
+
+The corpus step earned itself again here. The instance was handed a key and a
+`docker compose up`, and it fetched six seasons from Wikipedia, indexed 180 search
+units, and served the page without another command being typed.
+
+See [Deployment](docs/deployment.md).

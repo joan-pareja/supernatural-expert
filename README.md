@@ -5,13 +5,14 @@ Wikipedia, with the episodes it came from listed underneath. It will not tell yo
 anything past season 6, and it says so plainly when the corpus does not hold the
 answer.
 
-> The short entry point. [Journey](JOURNEY.md) is the long one, and the file to
-> read if you read only one.
-
 ## Try it
 
-You need Docker and an OpenAI API key. Nothing else: no Python to install, no
-database to set up, no model files to fetch by hand.
+It is already running at **<https://supernatural-expert.duckdns.org>**. Nothing
+to install, and no key of your own to supply: ask it a question and it answers.
+[Deployment](docs/deployment.md) covers where that runs.
+
+To run your own copy you need Docker and an OpenAI API key. Nothing else: no
+Python to install, no database to set up, no model files to fetch by hand.
 
 ```powershell
 git clone https://github.com/joan-pareja/supernatural-expert
@@ -30,42 +31,15 @@ When the log says the app is running, open <http://127.0.0.1:8501>.
 
 ![The chat answering a question, with its source](docs/images/chat__question-and-citation.png)
 
-### How long it takes
-
-The first run does the slow work once and never again:
-
-| | First run | Every run after |
-|---|---|---|
-| Downloading the base images | a few minutes, on your connection | skipped |
-| Building the image | about 1½ minutes | skipped |
-| Loading and indexing 132 documents | about 30 seconds | skipped |
-| Starting the chat | seconds | seconds |
-
-The two middle rows were measured on the maintainer's laptop. The download is the
-part that varies, and it is the larger cost: PostgreSQL is a 1.4 GB image, and
-the app image builds out to 3.2 GB once the Python dependencies and the two
-models are in it. How long the setup takes depends on your machine and internet
-connection.
-
-Nothing in between needs you. The database starts, the app waits until it is
-really answering, fetches the corpus from pinned Wikipedia revisions, builds the
-search index, and serves the page. Later starts count two tables, find the work
-already done, and go straight to the chat.
+The first run is the slow one, and it takes several minutes. Docker downloads the
+base images and builds the app image, then the container fetches the 132
+documents from Wikipedia and builds the search index before the page opens. The
+rest runs unattended, and the download is the part that varies most with your
+machine. Later starts find all of that already done and reach the chat in
+seconds.
 
 `docker compose down` stops everything. Add `-v` only if you want the corpus
 deleted and loaded again next time.
-
-### What it costs
-
-Answering a question calls OpenAI, which costs money. Measured over the 223
-questions behind the latest evaluation results, one costs under a tenth of a US
-cent — roughly fifteen questions to the cent. A long conversation costs more per
-answer than that, because each turn sends the ones before it again.
-
-Nothing else costs anything. The two Logfire lines in `.env` can stay empty, and
-the app then runs and sends no telemetry. Filling in a write token from a free
-Logfire project turns the traces, cost figures, and dashboard on instead;
-[Monitoring](docs/monitoring.md) gives the five steps.
 
 ## Read the Journey while it builds
 
@@ -74,9 +48,21 @@ measured against, what the numbers said, and what got thrown away afterwards. It
 is meant to be read start to finish, and it covers every part the course rubric
 scores.
 
-[Rubric](docs/rubric.md) is the checklist version — each criterion and where its
-evidence lives — tracking the official
+[Rubric](docs/rubric.md) is the checklist version, one row per criterion saying
+where its evidence lives. It tracks the official
 [LLM Zoomcamp project rubric](https://github.com/DataTalksClub/llm-zoomcamp/blob/main/project.md).
+
+## What it costs
+
+Answering a question calls OpenAI, which costs money. Measured over the 223
+questions behind the latest evaluation results, one answer costs under a tenth of
+a US cent, roughly fifteen questions to the cent. A long conversation costs more
+per answer, because each turn sends the ones before it again.
+
+Nothing else costs anything. The two Logfire lines in `.env` can stay empty, and
+the app then runs and sends no telemetry. Filling in a write token from a free
+Logfire project turns the traces, cost figures, and dashboard on instead;
+[Monitoring](docs/monitoring.md) gives the five steps.
 
 ## What it does
 
@@ -99,40 +85,6 @@ retrieval, evaluation, and monitoring than on loading an arbitrary corpus at
 runtime. See [Corpus](docs/corpus.md), [Ingestion](docs/ingestion.md), and
 [Architecture](ARCHITECTURE.md).
 
-## Working on the code
-
-Contributors run the code on the host and keep only the database in Docker, which
-is faster to iterate on than rebuilding an image:
-
-```powershell
-.\scripts\setup-dev.ps1
-docker compose up -d --wait db
-uv run python -m supernatural_expert.bootstrap
-uv run streamlit run src/supernatural_expert/chat/app.py
-```
-
-`setup-dev.ps1` creates `.env` from `.env.example`, installs the locked
-dependencies with `uv`, downloads the pinned ONNX models into `models/`, and
-links the shared agent skills. Every step keeps what is already there, so the
-script is safe to rerun. `bootstrap` is the same step the container runs: it
-loads the corpus and builds the index unless the database already holds them.
-
-Ingestion also runs on its own, and its dry run fetches and parses everything
-without touching PostgreSQL, writing one JSON file per season to `data/corpus/`
-so the result can be read first:
-
-```powershell
-uv run python -m supernatural_expert.ingestion --dry-run
-uv run python -m supernatural_expert.ingestion
-```
-
-A run produces 132 corpus documents across seasons 1 through 6, and fails rather
-than loading a partial corpus.
-
-The checks that must pass: `uv run ruff check .`, `uv run ruff format .`,
-`uv run pyright`, and `uv run pytest -q`. See
-[Development](docs/development.md).
-
 ## Documentation map
 
 Start with [Journey](JOURNEY.md). These are what it links into.
@@ -147,6 +99,7 @@ Start with [Journey](JOURNEY.md). These are what it links into.
 - [Chat](docs/chat.md): the Streamlit page and its feedback control.
 - [Evaluation](docs/evaluation.md): how everything above was measured.
 - [Monitoring](docs/monitoring.md): Logfire events, feedback, and the dashboard.
+- [Deployment](docs/deployment.md): where the hosted instance runs and why.
 - [Rubric](docs/rubric.md): the course checklist and where each point is earned.
 - [Development](docs/development.md): tools, commits, and Markdown rules.
 - [Roadmap](ROADMAP.md): build order.

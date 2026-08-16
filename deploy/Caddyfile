@@ -1,0 +1,12 @@
+# Fronts the chat with HTTPS on a public hostname, and is the definition the
+# hosted instance's /etc/caddy/Caddyfile is copied from. Caddy runs on the host
+# rather than as a Compose service: the app publishes to the loopback only, so
+# what reaches it has to be on the machine already. See docs/deployment.md.
+supernatural-expert.duckdns.org {
+	# Streamlit sends its UI uncompressed and reruns push it repeatedly.
+	encode zstd gzip
+
+	# The port compose.yaml publishes. Caddy upgrades the websocket Streamlit
+	# needs without being told to, and obtains the certificate on its own.
+	reverse_proxy 127.0.0.1:8501
+}

@@ -16,6 +16,29 @@
   automatically.
 - Support Windows 10 with PowerShell and the Docker Compose reviewer flow.
 
+## Running the code
+
+- Run `.\scripts\setup-dev.ps1` first in a fresh clone. It creates `.env` from
+  `.env.example`, installs the locked dependencies, downloads the pinned ONNX
+  models into `models/`, and links the shared agent skills. Rerunning it is safe.
+- Iterate with the app on the host and only the database in Docker, which is
+  faster than rebuilding the image:
+
+  ```powershell
+  docker compose up -d --wait db
+  uv run python -m supernatural_expert.bootstrap
+  uv run streamlit run src/supernatural_expert/chat/app.py
+  ```
+
+- `bootstrap` loads the corpus and builds the index, skipping whichever the
+  database already holds. It is the same step the container runs.
+- Reload the corpus with `uv run python -m supernatural_expert.ingestion`, and
+  add `--dry-run` to write one JSON file per season to `data/corpus/` without
+  touching PostgreSQL. A run produces 132 documents or fails; `--help` lists the
+  rest.
+- Pass all four checks before committing: `uv run ruff check .`, `uv run ruff
+  format .`, `uv run pyright`, and `uv run pytest -q`.
+
 ## Settings and secrets
 
 - Load settings with `dotenv_values` into a config object. Never call
@@ -40,6 +63,21 @@
   round to a tidy hour, or copy another note's value; a stamp in the future is
   always wrong. Ask if the real time cannot be read.
 - Use `related` only for direct note links, and ordinary Markdown links in prose.
+
+## Hosted instance
+
+- The public chat runs on an Oracle Cloud VM, reached with `ssh -i
+  ~/.ssh/oracle.key ubuntu@supernatural-expert.duckdns.org`. Address it by name,
+  never by the IP behind it.
+- The repository is cloned at `~/supernatural-expert` there, and `docker compose
+  up -d` is the whole of the run. Pull before rebuilding; that clone is behind
+  `main` whenever a commit has not reached it.
+- Caddy runs on the host rather than in Compose. `deploy/Caddyfile` is what
+  `/etc/caddy/Caddyfile` is copied from, so edit the repository and copy, never
+  the other way round.
+- Never write a key, a `.env`, or anything else carrying a secret into the
+  repository.
+- [Deployment](docs/deployment.md) owns the rest.
 
 ## Git
 

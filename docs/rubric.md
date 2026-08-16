@@ -3,13 +3,14 @@ type: reference
 title: Course rubric
 description: Maps the LLM Zoomcamp project rubric to planned evidence.
 status: approved
-modified: 2026-08-12T20:08:00+02:00
+modified: 2026-08-16T18:33:35+02:00
 tags:
 - rubric
 - course
 related:
 - ../README.md
 - ../ROADMAP.md
+- ./deployment.md
 - ./evaluation.md
 - ./monitoring.md
 ---
@@ -44,14 +45,11 @@ Base target: **18/18**.
 | Hybrid text and vector search | 1 | Built with RRF and measured against both paths alone. See [Retrieval](retrieval.md). |
 | Document reranking | 1 | An `ms-marco-MiniLM-L-12-v2` cross-encoder over the hybrid candidates, measured against both plain hybrid and the smaller model, and adopted. See [Retrieval](retrieval.md). |
 | User query rewriting | 1 | The agent composes its own search queries, measured against the question verbatim and constrained to searches after the first. See [Retrieval](retrieval.md). |
-| Cloud deployment | 2 | Not pursued. |
+| Cloud deployment | 2 | The same Compose stack runs on an Oracle Cloud virtual machine and is served over HTTPS at <https://supernatural-expert.duckdns.org>. See [Deployment](deployment.md). |
 | Exceptional work | up to 3 | A reviewer's to award, not a target to build towards. |
 
-The technical target is **21 points without cloud**, and the locked plan
-accounts for all of them.
-
-Two points are declined rather than missed: cloud deployment is outside the
-delivery target in [Scope](scope.md).
+The technical target is **23 points**, and the running project accounts for all
+of them.
 
 The official process also asks each student to review three peer projects. Each
 review adds three points outside this implementation checklist.
